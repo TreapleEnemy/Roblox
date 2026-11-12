@@ -1,0 +1,3 @@
+-- GladeSlayer: намеренно пустой скрипт Health.
+-- Заменяет стандартную регенерацию Roblox (StarterCharacterScripts.Health):
+-- реген считается на сервере из прокачки (CharacterService, раз в секунду).

@@ -1,0 +1,204 @@
+-- Additive deterministic world decoration; legacy world/NPC coordinates are preserved.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage:WaitForChild("GladeSlayer"):WaitForChild("Config"))
+local ExpansionWorld = {}
+local V = Vector3.new
+local C = CFrame.new
+local rgb = Color3.fromRGB
+local M = Enum.Material
+local rng = Random.new(71023)
+local function part(parent, name, size, cf, color, material, solid)
+ local p = Instance.new("Part")
+ p.Name, p.Size, p.CFrame = name, size, cf
+ p.Color, p.Material, p.Anchored = color, material or M.Slate, true
+ p.CanCollide = solid == true
+ p.CanTouch = false
+ p.CanQuery = solid == true
+ p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+ p.Parent = parent
+ return p
+end
+local function group(parent, name)
+ local f = Instance.new("Folder")
+ f.Name, f.Parent = name, parent
+ return f
+end
+local function light(p, color, range)
+ local l = Instance.new("PointLight")
+ l.Color, l.Range, l.Brightness = color, range or 12, 1.5
+ l.Parent = p
+end
+local function text(p, title)
+ local ui = Instance.new("BillboardGui")
+ ui.Size = UDim2.fromOffset(260, 62)
+ ui.StudsOffsetWorldSpace = V(0, 5, 0)
+ ui.MaxDistance, ui.AlwaysOnTop = 75, true
+ local label = Instance.new("TextLabel")
+ label.Size, label.BackgroundTransparency = UDim2.fromScale(1, 1), 1
+ label.Font, label.TextSize = Enum.Font.GothamBold, 18
+ label.TextColor3, label.TextStrokeTransparency = Color3.new(1,1,1), 0.25
+ label.TextWrapped, label.Text = true, title
+ label.Parent, ui.Parent = ui, p
+end
+local function crystal(parent, pos, color, scale)
+ local base = part(parent,"CrystalRock",V(3,1.5,3)*scale,C(pos+V(0,0.5*scale,0)),rgb(65,68,83),M.Rock)
+ for i=1,3 do
+  local h = (2+i*0.8)*scale
+  local p = part(parent,"Crystal",V(0.6*scale,h,0.6*scale),C(pos+V((i-2)*0.7*scale,h/2,0))*CFrame.Angles(0,0,(i-2)*0.2),color,M.Neon)
+  if i==2 then light(p,color,10) end
+ end
+ return base
+end
+local function lantern(parent, pos, color)
+ part(parent,"LanternFoot",V(1.6,0.4,1.6),C(pos+V(0,0.2,0)),rgb(58,50,48),M.Cobblestone)
+ part(parent,"LanternPost",V(0.4,6,0.4),C(pos+V(0,3,0)),rgb(65,49,38),M.Wood)
+ local lamp = part(parent,"LanternGlow",V(0.8,1.1,0.8),C(pos+V(0,6,0)),color,M.Neon)
+ light(lamp,color,17)
+ for _, y in ipairs({5.35,6.65}) do part(parent,"LanternCap",V(1.3,0.2,1.3),C(pos+V(0,y,0)),rgb(53,49,51),M.Metal) end
+end
+local function portal(parent, pos, destination)
+ local def = Config.Islands[destination]
+ local f = group(parent,"Portal_"..destination)
+ part(f,"PortalPlinth",V(12,0.5,8),C(pos),rgb(65,66,86),M.Marble,true)
+ for _, side in ipairs({-1,1}) do
+  part(f,"PortalPillar",V(1.2,9,1.4),C(pos+V(side*4.5,4.5,0)),rgb(86,85,103),M.Slate,true)
+  crystal(f,pos+V(side*4.5,9,0),def.Color,0.6)
+ end
+ part(f,"PortalLintel",V(10,0.9,1.6),C(pos+V(0,9,0)),rgb(93,88,113),M.Marble,true)
+ local core = part(f,"PortalCore",V(7.5,7.8,0.25),C(pos+V(0,4.5,0)),def.Color,M.Neon)
+ core.Transparency = 0.65
+ light(core,def.Color,20)
+ text(core,def.Name.."\nУровень "..def.Level.." • E — перейти")
+ local prompt = Instance.new("ProximityPrompt")
+ prompt.Name = "IslandTravel"
+ prompt.ActionText, prompt.ObjectText = "Перейти", def.Name
+ prompt.KeyboardKeyCode, prompt.HoldDuration = Enum.KeyCode.E, 0.4
+ prompt.MaxActivationDistance, prompt.RequiresLineOfSight = 11, false
+ prompt.Parent = core
+ core:SetAttribute("DestinationIsland",destination)
+end
+local function clearSpawn(x,z)
+ local p = V(x,2,z)
+ for _, zone in pairs(Config.Zones) do
+  if (p-zone.Center).Magnitude < zone.Radius+8 then return false end
+ end
+ return true
+end
+local function starter(parent)
+ -- Remove only small pre-existing static decorations along the new portal approaches.
+ for _, p in ipairs(parent:GetDescendants()) do
+  if p:IsA("BasePart") and p.Anchored and p.Name~="Boundary" and p.Size.X<25 and p.Size.Z<25 then
+   local pos=p.Position
+   local inPath=math.abs(pos.X)<105 and math.abs(pos.Z-106)<7 and math.abs(pos.X)>20
+   local inPortal=math.abs(math.abs(pos.X)-94)<14 and math.abs(pos.Z-106)<14
+   if (inPath or inPortal) and pos.Y>Config.GroundY+0.5 then p:Destroy() end
+  end
+ end
+ local f = group(parent,"GladeDetails")
+ -- Side paths stop before the old boundary walls.
+ for _, x in ipairs({-94,94}) do
+  part(f,"PortalPath",V(math.abs(x),0.12,6),C(x/2,2.13,106),rgb(153,134,107),M.Cobblestone)
+ end
+ portal(f,V(-94,2.6,106),"Desert")
+ portal(f,V(94,2.6,106),"Volcano")
+ for i=1,28 do
+  local x,z = rng:NextNumber(-140,140), rng:NextNumber(-140,135)
+  if clearSpawn(x,z) and math.abs(x)>65 and math.abs(z-106)>12 then
+   local p = part(f,"MossyBoulder",V(3,2,4),C(x,2.8,z)*CFrame.Angles(0,i,0.2),rgb(94,115,96),M.Rock)
+   p.Shape = Enum.PartType.Ball
+   crystal(f,V(x+2.2,2,z),rgb(114,218,225),0.6)
+   for j=1,3 do
+    local leaf = part(f,"Fern",V(0.18,1.8,1),C(x+j-2,2.8,z+2)*CFrame.Angles(0,j,0.4),rgb(69,140,78),M.Grass)
+    leaf.CastShadow = false
+   end
+  end
+ end
+ for _, x in ipairs({-17,17}) do
+  for _, z in ipairs({48,86,129}) do lantern(f,V(x,2,z),rgb(255,224,151)) end
+ end
+ for _, npc in pairs(Config.NPC) do
+  -- Extra display shelving behind existing stalls, not on their interaction side.
+  local pos = npc.Position+V(0,0,-7)
+  for _, h in ipairs({1.5,3.1}) do
+   part(f,"DisplayShelf",V(8,0.22,1.4),C(pos+V(0,h,0)),rgb(104,70,43),M.WoodPlanks)
+   for j=-2,2 do
+    local bottle = part(f,"DisplayBottle",V(0.5,0.8,0.5),C(pos+V(j*1.2,h+0.5,0)),j%2==0 and rgb(86,183,204) or rgb(201,128,96),M.Glass)
+    bottle.Transparency = 0.25
+    part(f,"BottleStopper",V(0.3,0.2,0.3),bottle.CFrame*C(0,0.5,0),rgb(135,103,61),M.Wood)
+   end
+  end
+  for _, side in ipairs({-1,1}) do
+   part(f,"SupplyCrate",V(2.2,2.2,2.2),C(pos+V(side*6,1.1,1)),rgb(138,101,62),M.WoodPlanks)
+   lantern(f,pos+V(side*7,0,2),rgb(255,207,126))
+  end
+ end
+end
+local function island(parent,id,cx,volcanic)
+ local def = Config.Islands[id]
+ local f = group(parent,id.."Island")
+ local surface = volcanic and rgb(65,56,66) or rgb(214,184,124)
+ part(f,"IslandBedrock",V(316,32,316),C(cx,-16,0),volcanic and rgb(35,29,42) or rgb(150,115,79),M.Rock,true)
+ part(f,"IslandSurface",V(310,4,310),C(cx,0,0),surface,volcanic and M.Basalt or M.Sand,true)
+ -- A safe, level path joins arrival and all farming areas. All decorative obstacles avoid spawn disks.
+ part(f,"MainCauseway",V(9,0.15,245),C(cx,2.12,0),volcanic and rgb(102,78,85) or rgb(183,148,95),M.Cobblestone)
+ for i=1,65 do
+  local x,z = cx+rng:NextNumber(-144,144),rng:NextNumber(-144,144)
+  if clearSpawn(x,z) and math.abs(x-cx)>17 and z<85 then
+   if volcanic then
+    local h = rng:NextNumber(6,19)
+    part(f,"BasaltSpire",V(4,h,5),C(x,2+h/2,z)*CFrame.Angles(0,i,0.08),rgb(42,34,52),M.Basalt)
+    if i%3==0 then crystal(f,V(x+4,2,z),rgb(255,102,49),0.8) end
+   else
+    local h = rng:NextNumber(1.5,4)
+    local dune = part(f,"Dune",V(17,h,14),C(x,2+h/5,z),surface,M.Sand)
+    dune.Shape = Enum.PartType.Ball
+    if i%3==0 then
+     part(f,"Cactus",V(1.2,5,1.2),C(x,4.5,z),rgb(83,134,86),M.Grass)
+     part(f,"CactusArm",V(3,0.8,0.8),C(x,5,z),rgb(83,134,86),M.Grass)
+    end
+   end
+  end
+ end
+ -- Ruin pillars stand outside each combat disk; the entire combat floor stays traversable.
+ local templeZ = volcanic and -105 or -68
+ for i=0,7 do
+  local a = i*math.pi/4
+  local templeX = volcanic and cx or cx+38
+  local px,pz = templeX+math.cos(a)*49,templeZ+math.sin(a)*39
+  local h = volcanic and 13 or 10
+  part(f,"TempleColumn",V(3,h,3),C(px,2+h/2,pz),surface,M.Sandstone,true)
+  part(f,"ColumnCap",V(4.5,1,4.5),C(px,2+h,pz),surface,M.Marble)
+  local glow = part(f,"ColumnRune",V(1.1,1.1,0.15),C(px,6,pz-1.6)*CFrame.Angles(0,0,math.pi/4),def.Color,M.Neon)
+  light(glow,def.Color,10)
+ end
+ if volcanic then
+  -- Lava is visual only; no hidden unavoidable damage under the mob spawn floors.
+  for _, x in ipairs({cx-116,cx+116}) do
+   local lava = part(f,"LavaChannel",V(12,0.2,170),C(x,2.18,-10),rgb(255,96,24),M.Neon)
+   light(lava,rgb(255,111,44),20)
+  end
+  part(f,"BossArena",V(94,0.25,86),C(cx,2.15,-105),rgb(74,57,70),M.Cobblestone,true)
+  text(part(f,"ArenaSign",V(1,1,1),C(cx,7,-57),rgb(255,125,61),M.Neon),"ВЛАДЫКА ПЕПЛА\nКрасная зона — отступай!")
+ else
+  for step=0,5 do
+   part(f,"DistantPyramid",V(65-step*9,3,65-step*9),C(cx+91,3.5+step*3,-112),rgb(188,149,91),M.Sandstone,true)
+  end
+ end
+ for _, z in ipairs({72,30,-15}) do
+  for _, x in ipairs({cx-14,cx+14}) do lantern(f,V(x,2,z),def.Color) end
+ end
+ portal(f,V(cx-22,2.6,114),"Glade")
+ portal(f,V(cx+22,2.6,114),volcanic and "Desert" or "Volcano")
+ text(part(f,"ArrivalMarker",V(1,1,1),C(cx,6,131),def.Color,M.Neon),def.Name.."\nРекомендуемый уровень: "..def.Level.."+")
+ -- Low perimeter walls stop mobs leaving their island. Portals are entirely inside these walls.
+ for _, side in ipairs({-1,1}) do
+  part(f,"EdgeWall",V(310,6,2),C(cx,5,side*154),surface,M.Rock,true)
+  part(f,"EdgeWall",V(2,6,310),C(cx+side*154,5,0),surface,M.Rock,true)
+ end
+end
+function ExpansionWorld.Build(parent)
+ starter(parent)
+ island(parent,"Desert",720,false)
+ island(parent,"Volcano",1440,true)
+end
+return ExpansionWorld

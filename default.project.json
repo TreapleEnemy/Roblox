@@ -1,0 +1,18 @@
+{
+  "name": "GladeSlayer",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "GladeSlayer": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "GladeSlayerServer": { "$path": "src/server" }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "GladeSlayerClient": { "$path": "src/client" }
+      },
+      "StarterCharacterScripts": { "$path": "src/character" }
+    }
+  }
+}

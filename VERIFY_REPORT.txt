@@ -1,0 +1,44 @@
+PORTABLE CHECK: Lua 5.4 fallback; not official Luau/Studio verification.
+PASS: all source/test files parse in the Lua-compatible subset
+PASS: 244 pure Rules/config assertions
+PASS: 98 mocked factory/travel/boss/UI assertions (not real Roblox runtime)
+[3] Зависимости модулей
+  ok   shared/Animator.luau
+  ok   shared/Config.luau
+  ok   shared/Models.luau
+  ok   shared/Rules.luau
+  ok   server/CharacterService.luau
+  ok   server/CombatService.luau
+  ok   server/DataService.luau
+  ok   server/EconomyService.luau
+  ok   server/ExpansionWorld.luau
+  ok   server/Main.server.luau
+  ok   server/MobService.luau
+  ok   server/NPCService.luau
+  ok   server/TravelService.luau
+  ok   server/WorldBuilder.luau
+  ok   client/Effects.luau
+  ok   client/Icons.luau
+  ok   client/Main.client.luau
+  ok   client/UI.luau
+  ok   character/Health.server.luau
+[4] Протокол клиент-сервер
+  ok   FX BossImpact обрабатывается клиентом
+  ok   FX Damage обрабатывается клиентом
+  ok   FX LevelUp обрабатывается клиентом
+  ok   FX Loot обрабатывается клиентом
+  ok   FX MobAttack обрабатывается клиентом
+  ok   FX MobDied обрабатывается клиентом
+  ok   FX PlayerHit обрабатывается клиентом
+  ok   FX Swing обрабатывается клиентом
+  ok   Request Buy обрабатывается сервером
+  ok   Request DiscardJunk обрабатывается сервером
+  ok   Request Equip обрабатывается сервером
+  ok   Request Sell обрабатывается сервером
+  ok   Request SellAll обрабатывается сервером
+  ok   Request Sync обрабатывается сервером
+  ok   Request Teleport обрабатывается сервером
+  ok   Request Unequip обрабатывается сервером
+  ok   Request Upgrade обрабатывается сервером
+  ok   Request UsePotion обрабатывается сервером
+PASS: portable checks completed. Studio, official Luau analysis, visuals and real services NOT tested.
