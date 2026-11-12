@@ -209,7 +209,7 @@ function handlers.Damage(model, position, amount, crit, userId)
 	sparks(position, crit and rgb(255, 170, 60) or rgb(255, 255, 200), crit and 10 or 5)
 	local clip = model.Name == "Slime" and "SlimeHit" or "HitReact"
 	local ctrl = Animator.Get(model)
-	if ctrl and not (ctrl:IsBusy() and ctrl.Clip ~= clip and ctrl.Clip ~= "GuardianWalk" and ctrl.Clip ~= "SlimeBounce" and ctrl.Clip ~= "MobIdle" and ctrl.Clip ~= "SlimeIdle") then
+	if ctrl and not (ctrl:IsBusy() and ctrl.Clip ~= clip and ctrl.Clip ~= "GuardianWalk" and ctrl.Clip ~= "SlimeBounce" and ctrl.Clip ~= "MobIdle" and ctrl.Clip ~= "SlimeIdle" and ctrl.Clip ~= model:GetAttribute("IdleClip") and ctrl.Clip ~= model:GetAttribute("WalkClip")) then
 		ctrl:Play(clip, 1)
 	end
 end
@@ -320,6 +320,51 @@ function handlers.MobAttack(model, mobId, clip)
 	end
 end
 
+-- Светящийся снаряд мага: летит от fromPos к toPos со скоростью speed (стад/с), затем вспышка.
+function handlers.Projectile(fromPos, toPos, color, speed)
+	color = color or rgb(120, 220, 255)
+	local distance = (toPos - fromPos).Magnitude
+	local duration = math.max(0.1, distance / math.max(speed or 60, 1))
+	local orb = Instance.new("Part")
+	orb.Shape = Enum.PartType.Ball
+	orb.Anchored = true
+	orb.CanCollide = false
+	orb.CanQuery = false
+	orb.CanTouch = false
+	orb.Material = Enum.Material.Neon
+	orb.Color = color
+	orb.Size = Vector3.new(1.2, 1.2, 1.2)
+	orb.CFrame = CFrame.new(fromPos)
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 12
+	light.Brightness = 2
+	light.Parent = orb
+	orb.Parent = workspace
+	tween(orb, duration, { CFrame = CFrame.new(toPos) }, Enum.EasingStyle.Linear)
+	task.spawn(function()
+		local elapsed = 0
+		while elapsed < duration and orb.Parent do
+			sparks(orb.Position, color, 1)
+			elapsed += 0.06
+			task.wait(0.06)
+		end
+		if orb.Parent then
+			sparks(toPos, color, 8)
+			ring(toPos, color, 5, 0.3)
+		end
+		orb:Destroy()
+	end)
+	Debris:AddItem(orb, duration + 0.5)
+end
+
+function handlers.Summon(position, color)
+	color = color or rgb(190, 120, 255)
+	ring(position + Vector3.new(0, 0.3, 0), color, 16, 0.7)
+	ring(position + Vector3.new(0, 0.3, 0), color, 9, 0.5)
+	sparks(position + Vector3.new(0, 1, 0), color, 18)
+end
+
 function handlers.BossImpact(position, radius)
  ring(position,rgb(255,154,60),radius*2,0.55)
  sparks(position,rgb(255,186,92),24)
@@ -380,10 +425,17 @@ function Effects.Start()
       if localRoot and (localRoot.Position-root.Position).Magnitude<210 then
        local moving = (root.AssemblyLinearVelocity*Vector3.new(1,0,1)).Magnitude>1.5
        local ctrl = Animator.Get(model)
-       local idle = ctrl.Clip == "MobIdle" or ctrl.Clip == "SlimeIdle"
-       local walking = ctrl.Clip == "GuardianWalk" or ctrl.Clip == "SlimeBounce"
-       if not ctrl:IsBusy() or (moving and idle) or (not moving and walking) then
-        local clip = moving and (model.Name=="Slime" and "SlimeBounce" or "GuardianWalk") or (model.Name=="Slime" and "SlimeIdle" or "MobIdle")
+       local idleAttr = model:GetAttribute("IdleClip")
+       local walkAttr = model:GetAttribute("WalkClip")
+       local idle = ctrl.Clip == "MobIdle" or ctrl.Clip == "SlimeIdle" or (idleAttr ~= nil and ctrl.Clip == idleAttr)
+       local walking = ctrl.Clip == "GuardianWalk" or ctrl.Clip == "SlimeBounce" or (walkAttr ~= nil and ctrl.Clip == walkAttr)
+       local clip
+       if moving then
+        clip = walkAttr or (model.Name=="Slime" and "SlimeBounce" or "GuardianWalk")
+       else
+        clip = idleAttr or (model.Name=="Slime" and "SlimeIdle" or "MobIdle")
+       end
+       if not ctrl:IsBusy() or (moving and idle and ctrl.Clip ~= clip) or (not moving and walking and ctrl.Clip ~= clip) then
         ctrl:Play(clip, model:GetAttribute("Phase")==2 and 1.2 or 1)
        end
       end

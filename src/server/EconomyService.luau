@@ -9,8 +9,11 @@ local Config = require(Shared:WaitForChild("Config"))
 local Rules = require(Shared:WaitForChild("Rules"))
 
 local TravelService = require(script.Parent:WaitForChild("TravelService"))
+local DungeonService = require(script.Parent:WaitForChild("DungeonService"))
 local EconomyService = {}
 EconomyService.OnSync = nil
+-- Хук успешного действия: function(player, profile, action, arg) — используется гайдом новичка.
+EconomyService.OnAction = nil
 
 local DataService = nil
 local buckets = {}
@@ -141,6 +144,18 @@ end
 function handlers.DiscardJunk(_, profile)
  return Rules.DiscardJunk(profile)
 end
+function handlers.SkipTutorial(_, profile)
+	return Rules.TutorialSkip(profile)
+end
+function handlers.EnterDungeon(player, profile, dungeonId)
+	if not validString(dungeonId) then
+		return false, "Неизвестное подземелье."
+	end
+	return DungeonService.Enter(player, profile, dungeonId)
+end
+function handlers.LeaveDungeon(player)
+	return DungeonService.Leave(player)
+end
 local function onRequest(player, action, a, b)
 	if not allow(player) then
 		return false, "Слишком часто. Подожди секунду."
@@ -169,6 +184,12 @@ local function onRequest(player, action, a, b)
 	end
 	if ok then
 		DataService.Changed(player)
+		if EconomyService.OnAction then
+			local hookOk, hookError = pcall(EconomyService.OnAction, player, profile, action, a)
+			if not hookOk then
+				warn("[GladeSlayer] OnAction " .. action .. ": " .. tostring(hookError))
+			end
+		end
 	end
 	return ok == true, type(message) == "string" and message or ""
 end

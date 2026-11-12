@@ -1,5 +1,5 @@
--- GladeSlayer: точка входа клиента. Ввод (ЛКМ/тап — удар, C — прокачка, B — инвентарь),
--- подписка на Remotes, полоска ХП, автозакрытие магазина при уходе от NPC.
+-- GladeSlayer: точка входа клиента. Ввод (ЛКМ/тап — удар, I — инвентарь, K — прокачка, J — подземелья,
+-- T — телепорты), подписка на Remotes, полоска ХП, гайд новичка, автозакрытие магазина при уходе от NPC.
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8,11 +8,12 @@ local Shared = ReplicatedStorage:WaitForChild("GladeSlayer")
 local Config = require(Shared:WaitForChild("Config"))
 local UI = require(script.Parent:WaitForChild("UI"))
 local Effects = require(script.Parent:WaitForChild("Effects"))
+local Guide = require(script.Parent:WaitForChild("Guide"))
 
 local player = Players.LocalPlayer
 local remoteFolder = Shared:WaitForChild("Remotes")
 local Remotes = {}
-for _, name in ipairs({ "Attack", "State", "FX", "OpenShop", "Toast", "Request" }) do
+for _, name in ipairs({ "Attack", "State", "FX", "OpenShop", "Toast", "Request", "Dungeon" }) do
 	Remotes[name] = remoteFolder:WaitForChild(name)
 end
 
@@ -46,25 +47,37 @@ end
 UI.Init(Remotes, attack)
 Effects.Start()
 
-Remotes.State.OnClientEvent:Connect(UI.SetState)
+Remotes.State.OnClientEvent:Connect(function(state)
+	UI.SetState(state)
+	Guide.SetState(state)
+end)
 Remotes.Toast.OnClientEvent:Connect(UI.Toast)
 Remotes.OpenShop.OnClientEvent:Connect(UI.OpenShop)
 Remotes.FX.OnClientEvent:Connect(Effects.Handle)
+Remotes.Dungeon.OnClientEvent:Connect(UI.SetDungeon)
+
+-- Горячие клавиши окон; B и C оставлены для тех, кто привык к прежней раскладке.
+local PANEL_KEYS = {
+	[Enum.KeyCode.I] = "Inventory", [Enum.KeyCode.B] = "Inventory",
+	[Enum.KeyCode.K] = "Stats", [Enum.KeyCode.C] = "Stats",
+	[Enum.KeyCode.J] = "Dungeons",
+	[Enum.KeyCode.T] = "Teleports",
+}
 
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then
 		return
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-  local position=UserInputService:GetMouseLocation()
-  for _, object in ipairs(player.PlayerGui:GetGuiObjectsAtPosition(position.X,position.Y)) do
-   if object:IsA("GuiButton") or object:IsA("ScrollingFrame") or object:IsA("TextBox") then return end
-  end
-  attack()
-	elseif input.KeyCode == Enum.KeyCode.C then
-		UI.Toggle("Stats")
-	elseif input.KeyCode == Enum.KeyCode.B then
-		UI.Toggle("Inventory")
+		local position = UserInputService:GetMouseLocation()
+		for _, object in ipairs(player.PlayerGui:GetGuiObjectsAtPosition(position.X, position.Y)) do
+			if object:IsA("GuiButton") or object:IsA("ScrollingFrame") or object:IsA("TextBox") then
+				return
+			end
+		end
+		attack()
+	elseif PANEL_KEYS[input.KeyCode] then
+		UI.Toggle(PANEL_KEYS[input.KeyCode])
 	elseif input.KeyCode == Enum.KeyCode.ButtonR2 then
 		attack()
 	end

@@ -12,7 +12,8 @@ for _,id in ipairs(Config.MobOrder) do
  check("No duplicate mob: "..id,not mobIds[id])
  mobIds[id]=true
  local def=Config.Mobs[id]
- check("Mob configured: "..id,def.Health>0 and def.Count>=1 and def.Coins[2]>=def.Coins[1])
+ -- Мобы подземелий (Dungeon = true) не живут на островах: их спавнит DungeonService по волнам.
+ check("Mob configured: "..id,def.Health>0 and (def.Count>=1 or def.Dungeon==true) and def.Coins[2]>=def.Coins[1])
  for _,drop in ipairs(def.Loot) do check("Valid probability: "..id,drop.Chance>=0 and drop.Chance<=1) end
 end
 local p=Rules.NewProfile()

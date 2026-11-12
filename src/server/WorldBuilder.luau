@@ -73,9 +73,10 @@ local function decor(p)
 end
 
 local function sign(parent, text, cframe, color)
-	local board = part(parent, "Sign", V3(9, 3, 0.4), cframe, rgb(120, 84, 50), M.WoodPlanks)
+	-- Таблички — чистый декор: без коллизии, чтобы никогда не перегораживать тропы.
+	local board = decor(part(parent, "Sign", V3(9, 3, 0.4), cframe, rgb(120, 84, 50), M.WoodPlanks))
 	for _, side in ipairs({ -1, 1 }) do
-		part(parent, "SignPost", V3(0.5, 5.5, 0.5), cframe * CF(side * 3.6, -2.2, 0.3), rgb(96, 66, 40), M.Wood)
+		decor(part(parent, "SignPost", V3(0.5, 5.5, 0.5), cframe * CF(side * 3.6, -2.2, 0.3), rgb(96, 66, 40), M.Wood))
 	end
 	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
 		local gui = Instance.new("SurfaceGui")
@@ -127,13 +128,21 @@ local function buildGround()
 	local f = folder("Ground")
 	local size = Config.MapHalfSize * 2
 	part(f, "Meadow", V3(size, 4, size), CF(0, G - 2, 0), rgb(98, 160, 72), M.Grass)
-	-- Холмистая кромка вокруг поляны.
+	-- Холмистая кромка вокруг поляны. Холмы не должны залезать в порталы и вход в подземелья.
+	local keepClear = { V3(-94, G, 106), V3(94, G, 106), V3(40, G, 134) }
 	for i = 0, 23 do
 		local angle = i / 24 * math.pi * 2
 		local radius = Config.MapHalfSize - 6
 		local height = rng:NextNumber(10, 22)
-		local p = ball(f, "Hill", rng:NextNumber(30, 46), V3(math.cos(angle) * radius, G - 30 + height, math.sin(angle) * radius), rgb(84, 140, 62), M.Grass)
-		p.Size = V3(p.Size.X, p.Size.X, p.Size.X)
+		local diameter = rng:NextNumber(30, 46)
+		for _, point in ipairs(keepClear) do
+			local center = V3(math.cos(angle) * radius, G, math.sin(angle) * radius)
+			if (center - point).Magnitude < diameter / 2 + 12 then
+				radius = Config.MapHalfSize + 8
+				diameter = 24
+			end
+		end
+		ball(f, "Hill", diameter, V3(math.cos(angle) * radius, G - 30 + height, math.sin(angle) * radius), rgb(84, 140, 62), M.Grass)
 	end
 	for _, data in ipairs({ { V3(0, 30, Config.MapHalfSize), V3(size, 60, 2) }, { V3(0, 30, -Config.MapHalfSize), V3(size, 60, 2) }, { V3(Config.MapHalfSize, 30, 0), V3(2, 60, size) }, { V3(-Config.MapHalfSize, 30, 0), V3(2, 60, size) } }) do
 		local wall = part(f, "Boundary", data[2], CF(data[1]), rgb(255, 255, 255), M.SmoothPlastic)
@@ -166,7 +175,8 @@ local function buildGround()
 	-- Фонтан-обелиск у спавна.
 	cylinder(f, "Obelisk", 6, 1.6, V3(0, G + 3.2, Config.SpawnPosition.Z - 10), rgb(170, 166, 156), M.Marble)
 	decor(ball(f, "ObeliskGem", 1.4, V3(0, G + 7, Config.SpawnPosition.Z - 10), rgb(120, 220, 255), M.Neon))
-	sign(f, Config.GameName, CF(0, G + 5, Config.SpawnPosition.Z - 16) * ANG(0, RAD(180), 0), rgb(255, 230, 150))
+	-- Табличка на обочине справа от центральной тропы (тропа шириной 9 по оси X = 0), развёрнута к дорожке.
+	sign(f, Config.GameName, CF(11, G + 5, Config.SpawnPosition.Z - 17) * ANG(0, RAD(160), 0), rgb(255, 230, 150))
 end
 
 -- Лес и мелкий декор ---------------------------------------------------------------------------

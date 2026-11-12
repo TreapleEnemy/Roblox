@@ -1,7 +1,57 @@
-PORTABLE CHECK: Lua 5.4 fallback; not official Luau/Studio verification.
-PASS: all source/test files parse in the Lua-compatible subset
-PASS: 244 pure Rules/config assertions
-PASS: 98 mocked factory/travel/boss/UI assertions (not real Roblox runtime)
+[1] Синтаксис (luau-compile)
+  ok   src/shared/Animator.luau
+  ok   src/shared/Config.luau
+  ok   src/shared/Models.luau
+  ok   src/shared/Rules.luau
+  ok   src/server/CharacterService.luau
+  ok   src/server/CombatService.luau
+  ok   src/server/DataService.luau
+  ok   src/server/DungeonService.luau
+  ok   src/server/DungeonWorld.luau
+  ok   src/server/EconomyService.luau
+  ok   src/server/ExpansionWorld.luau
+  ok   src/server/Main.server.luau
+  ok   src/server/MobService.luau
+  ok   src/server/NPCService.luau
+  ok   src/server/TravelService.luau
+  ok   src/server/TutorialService.luau
+  ok   src/server/WorldBuilder.luau
+  ok   src/client/Effects.luau
+  ok   src/client/Guide.luau
+  ok   src/client/IconRenderer.luau
+  ok   src/client/Icons.luau
+  ok   src/client/Main.client.luau
+  ok   src/client/UI.luau
+  ok   src/character/Health.server.luau
+  ok   tests/expansion_spec.luau
+  ok   tests/update3_spec.luau
+  ok   tests/rules_spec.luau
+  ok   tests/runtime_smoke.luau
+[2] Неизвестные глобальные имена (luau-analyze)
+  ok   shared/Animator.luau
+  ok   shared/Config.luau
+  ok   shared/Models.luau
+  ok   shared/Rules.luau
+  ok   server/CharacterService.luau
+  ok   server/CombatService.luau
+  ok   server/DataService.luau
+  ok   server/DungeonService.luau
+  ok   server/DungeonWorld.luau
+  ok   server/EconomyService.luau
+  ok   server/ExpansionWorld.luau
+  ok   server/Main.server.luau
+  ok   server/MobService.luau
+  ok   server/NPCService.luau
+  ok   server/TravelService.luau
+  ok   server/TutorialService.luau
+  ok   server/WorldBuilder.luau
+  ok   client/Effects.luau
+  ok   client/Guide.luau
+  ok   client/IconRenderer.luau
+  ok   client/Icons.luau
+  ok   client/Main.client.luau
+  ok   client/UI.luau
+  ok   character/Health.server.luau
 [3] Зависимости модулей
   ok   shared/Animator.luau
   ok   shared/Config.luau
@@ -10,14 +60,19 @@ PASS: 98 mocked factory/travel/boss/UI assertions (not real Roblox runtime)
   ok   server/CharacterService.luau
   ok   server/CombatService.luau
   ok   server/DataService.luau
+  ok   server/DungeonService.luau
+  ok   server/DungeonWorld.luau
   ok   server/EconomyService.luau
   ok   server/ExpansionWorld.luau
   ok   server/Main.server.luau
   ok   server/MobService.luau
   ok   server/NPCService.luau
   ok   server/TravelService.luau
+  ok   server/TutorialService.luau
   ok   server/WorldBuilder.luau
   ok   client/Effects.luau
+  ok   client/Guide.luau
+  ok   client/IconRenderer.luau
   ok   client/Icons.luau
   ok   client/Main.client.luau
   ok   client/UI.luau
@@ -30,15 +85,25 @@ PASS: 98 mocked factory/travel/boss/UI assertions (not real Roblox runtime)
   ok   FX MobAttack обрабатывается клиентом
   ok   FX MobDied обрабатывается клиентом
   ok   FX PlayerHit обрабатывается клиентом
+  ok   FX Projectile обрабатывается клиентом
+  ok   FX Summon обрабатывается клиентом
   ok   FX Swing обрабатывается клиентом
   ok   Request Buy обрабатывается сервером
   ok   Request DiscardJunk обрабатывается сервером
+  ok   Request EnterDungeon обрабатывается сервером
   ok   Request Equip обрабатывается сервером
+  ok   Request LeaveDungeon обрабатывается сервером
   ok   Request Sell обрабатывается сервером
   ok   Request SellAll обрабатывается сервером
+  ok   Request SkipTutorial обрабатывается сервером
   ok   Request Sync обрабатывается сервером
   ok   Request Teleport обрабатывается сервером
   ok   Request Unequip обрабатывается сервером
   ok   Request Upgrade обрабатывается сервером
   ok   Request UsePotion обрабатывается сервером
-PASS: portable checks completed. Studio, official Luau analysis, visuals and real services NOT tested.
+[5] Юнит-тесты Rules/Config (luau)
+tests: 570 passed, 0 failed
+[6] Mock-рантайм (tests/runtime_smoke.luau в luau)
+  PASS: 296 mocked factory/travel/boss/UI assertions (not real Roblox runtime)
+
+ИТОГ: все офлайн-проверки пройдены

@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("GladeSlayer")
@@ -12,6 +13,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Rules = require(Shared:WaitForChild("Rules"))
 
 local Icons = require(script.Parent:WaitForChild("Icons"))
+local IconRenderer = require(script.Parent:WaitForChild("IconRenderer"))
 local UI = {}
 
 local player = Players.LocalPlayer
@@ -35,6 +37,16 @@ local inventoryFilter = "All"
 local discardConfirmUntil = 0
 local refreshDetails
 local bossSmoothRatio = 1
+local dungeon = nil
+local dungeonReceivedAt = 0
+local skipConfirmUntil = 0
+local tutorialHighlight = nil
+local DOCK = {
+	{ Id = "Inventory", Name = "Инвентарь", Panel = "Inventory", Color = rgb(70, 170, 130) },
+	{ Id = "Stats", Name = "Прокачка", Panel = "Stats", Color = rgb(120, 110, 220) },
+	{ Id = "Dungeons", Name = "Данжи", Panel = "Dungeons", Color = rgb(150, 70, 200) },
+	{ Id = "Teleports", Name = "Телепорты", Panel = "Teleports", Color = rgb(68, 143, 185) },
+}
 
 local THEME = {
 	Panel = rgb(26, 28, 40),
@@ -320,15 +332,18 @@ end
 local function itemCell(parent, itemId, amount, order, equippedSlot)
 	local color = itemColor(itemId)
 	local def = Config.Items[itemId]
-	local cell = new("TextButton", { AutoButtonColor = false, Text = "", BackgroundColor3 = color:Lerp(THEME.Panel,0.72), LayoutOrder = order }, parent)
+	local cell = new("TextButton", { AutoButtonColor = false, Text = "", BackgroundColor3 = rgb(255, 255, 255), LayoutOrder = order }, parent)
 	corner(cell, 10)
 	local s = stroke(cell, color, selectedItem == itemId and 3 or 1.5, selectedItem == itemId and 0 or 0.25)
 	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	gradient(cell, rgb(255, 255, 255), rgb(175, 175, 190), 90)
-	Icons.Draw(cell,Icons.ItemKind(def),color,UDim2.fromOffset(25,8),UDim2.fromOffset(46,46))
-	label(cell, def and def.Name or itemId, 11, { Position = UDim2.fromOffset(4, 60), Size = UDim2.new(1, -8, 0, 38), TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center, TextColor3 = color, TextStrokeTransparency = 0.5 })
+	-- Градиент редкости: светлый цвет редкости сверху, тёмный низ под подписью.
+	gradient(cell, color:Lerp(rgb(255, 255, 255), 0.25), THEME.Panel, 90)
+	IconRenderer.Item(cell, itemId, { Position = UDim2.fromOffset(6, 4), Size = UDim2.new(1, -12, 0, 60) })
+	label(cell, def and def.Name or itemId, 11, { Position = UDim2.fromOffset(4, 64), Size = UDim2.new(1, -8, 0, 36), TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center, TextColor3 = color:Lerp(rgb(255, 255, 255), 0.35), ZIndex = 2 })
+	new("UIStroke", { Color = rgb(10, 10, 16), Thickness = 1.4, Transparency = 0.1 }, cell:FindFirstChildOfClass("TextLabel"))
 	if amount and amount > 1 then
-		label(cell, "x" .. amount, 13, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 2), Size = UDim2.fromOffset(36, 16), TextXAlignment = Enum.TextXAlignment.Right })
+		local badge = label(cell, "x" .. amount, 13, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 2), Size = UDim2.fromOffset(40, 16), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 3 })
+		new("UIStroke", { Color = rgb(10, 10, 16), Thickness = 1.4 }, badge)
 	end
 	if equippedSlot then
 		local badge = new("Frame", { BackgroundColor3 = THEME.Green, Position = UDim2.fromOffset(4, 4), Size = UDim2.fromOffset(16, 16) }, cell)
@@ -365,6 +380,10 @@ refreshDetails = function()
 	label(d, def.Description or "", 13, { Font = Enum.Font.GothamMedium, Position = UDim2.fromOffset(12, 80), Size = UDim2.new(1, -24, 0, 90), TextYAlignment = Enum.TextYAlignment.Top })
 	label(d, Rules.BonusText(selectedItem), 14, { Position = UDim2.fromOffset(12, 172), Size = UDim2.new(1, -24, 0, 40), TextColor3 = THEME.Green, TextYAlignment = Enum.TextYAlignment.Top })
 	label(d, "Скупщик даст: " .. Rules.FormatNumber(def.Sell or 0) .. " 🪙", 13, { Position = UDim2.fromOffset(12, 216), Size = UDim2.new(1, -24, 0, 18), TextColor3 = THEME.Gold })
+	local preview = new("Frame", { BackgroundColor3 = rgb(255, 255, 255), Position = UDim2.fromOffset(12, 240), Size = UDim2.new(1, -24, 1, -306) }, d)
+	corner(preview, 10)
+	gradient(preview, color:Lerp(rgb(255, 255, 255), 0.2), THEME.Panel, 90)
+	IconRenderer.Spin(IconRenderer.Item(preview, selectedItem), 0.9)
 	local equippedSlot = isEquipped(selectedItem)
 	local actionProps = { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.new(1, -24, 0, 42) }
 	if def.Kind == "Gear" then
@@ -447,8 +466,12 @@ local function refreshMerchant()
 			order = order + 1
 			local c = card(refs.SellList, 58, order)
 			local color, rarityName = itemColor(itemId)
-			label(c, def.Name .. "  x" .. amount, 16, { Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -250, 0, 24), TextColor3 = color })
-			label(c, rarityName .. "  •  " .. Rules.FormatNumber(def.Sell) .. " 🪙 за шт.", 13, { Position = UDim2.fromOffset(12, 30), Size = UDim2.new(1, -250, 0, 20), TextColor3 = THEME.Muted })
+			local iconBack = new("Frame", { BackgroundColor3 = rgb(255, 255, 255), Position = UDim2.fromOffset(6, 5), Size = UDim2.fromOffset(48, 48) }, c)
+			corner(iconBack, 8)
+			gradient(iconBack, color:Lerp(rgb(255, 255, 255), 0.25), THEME.Panel, 90)
+			IconRenderer.Item(iconBack, itemId)
+			label(c, def.Name .. "  x" .. amount, 16, { Position = UDim2.fromOffset(62, 6), Size = UDim2.new(1, -300, 0, 24), TextColor3 = color })
+			label(c, rarityName .. "  •  " .. Rules.FormatNumber(def.Sell) .. " 🪙 за шт.", 13, { Position = UDim2.fromOffset(62, 30), Size = UDim2.new(1, -300, 0, 20), TextColor3 = THEME.Muted })
 			button(c, "Продать 1", THEME.Accent, function()
 				request("Sell", itemId, 1)
 			end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -124, 0.5, 0), Size = UDim2.fromOffset(104, 38) })
@@ -502,9 +525,13 @@ local function refreshBlacksmith()
 			order = order + 1
 			local c = card(refs.ShopList, 72, order)
 			local color, rarityName = itemColor(itemId)
-			label(c, def.Name, 17, { Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -170, 0, 22), TextColor3 = color })
-			label(c, rarityName .. "  •  " .. Rules.BonusText(itemId), 13, { Position = UDim2.fromOffset(12, 28), Size = UDim2.new(1, -170, 0, 18), TextColor3 = THEME.Green })
-			label(c, def.Description or "", 12, { Position = UDim2.fromOffset(12, 46), Size = UDim2.new(1, -170, 0, 20), TextColor3 = THEME.Muted, Font = Enum.Font.GothamMedium, TextTruncate = Enum.TextTruncate.AtEnd })
+			local iconBack = new("Frame", { BackgroundColor3 = rgb(255, 255, 255), Position = UDim2.fromOffset(7, 7), Size = UDim2.fromOffset(58, 58) }, c)
+			corner(iconBack, 9)
+			gradient(iconBack, color:Lerp(rgb(255, 255, 255), 0.25), THEME.Panel, 90)
+			IconRenderer.Item(iconBack, itemId)
+			label(c, def.Name, 17, { Position = UDim2.fromOffset(74, 6), Size = UDim2.new(1, -232, 0, 22), TextColor3 = color })
+			label(c, rarityName .. "  •  " .. Rules.BonusText(itemId), 13, { Position = UDim2.fromOffset(74, 28), Size = UDim2.new(1, -232, 0, 18), TextColor3 = THEME.Green })
+			label(c, def.Description or "", 12, { Position = UDim2.fromOffset(74, 46), Size = UDim2.new(1, -232, 0, 20), TextColor3 = THEME.Muted, Font = Enum.Font.GothamMedium, TextTruncate = Enum.TextTruncate.AtEnd })
 			local affordable = state.Coins >= (def.Price or 0)
 			local owned = count(itemId)
 			button(c, Rules.FormatNumber(def.Price or 0) .. " 🪙", affordable and THEME.Green or THEME.Gray, function()
@@ -542,10 +569,10 @@ local function pop(scale, amount)
 	tween(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 end
 
--- Всплывающая «+N» рядом с элементом HUD.
+-- Всплывающая «+N» слева от элемента HUD (HUD монет прижат к правому краю экрана).
 local function floatText(parent, text, color)
-	local l = label(parent, text, 18, { Font = Enum.Font.GothamBlack, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(1, 8, 0.5, 0), Size = UDim2.fromOffset(120, 24), TextColor3 = color, TextStrokeTransparency = 0.3, TextWrapped = false })
-	tween(l, 0.9, { Position = UDim2.new(1, 8, 0.5, -26), TextTransparency = 1, TextStrokeTransparency = 1 }, Enum.EasingStyle.Quart)
+	local l = label(parent, text, 18, { Font = Enum.Font.GothamBlack, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(0, -8, 0.5, 0), Size = UDim2.fromOffset(120, 24), TextColor3 = color, TextStrokeTransparency = 0.3, TextWrapped = false, TextXAlignment = Enum.TextXAlignment.Right })
+	tween(l, 0.9, { Position = UDim2.new(0, -8, 0.5, -26), TextTransparency = 1, TextStrokeTransparency = 1 }, Enum.EasingStyle.Quart)
 	task.delay(0.95, function()
 		l:Destroy()
 	end)
@@ -578,11 +605,30 @@ local function animateHud()
 	if refs.LevelRing then
 		refs.LevelRing.Rotation = (t * 60) % 360
 	end
+	-- Пульсация кнопки дока, которую требует текущий шаг гайда.
+	if refs.DockButtons then
+		local pulse = 0.5 + 0.5 * math.sin(t * 6)
+		for id, entry in pairs(refs.DockButtons) do
+			if entry.Glow then
+				if tutorialHighlight == id and currentPanel ~= id then
+					entry.Glow.Color = rgb(255, 220, 80)
+					entry.Glow.Thickness = 2 + pulse * 3
+					entry.Glow.Transparency = 0.1 * pulse
+				else
+					entry.Glow.Color = rgb(255, 255, 255)
+					entry.Glow.Thickness = 1
+					entry.Glow.Transparency = 0.75
+				end
+			end
+		end
+	end
 end
 
 local function buildHud()
-	-- Монеты и очки навыков (слева сверху, ниже кнопок Roblox).
-	local coins = new("Frame", { BackgroundColor3 = THEME.Panel, BackgroundTransparency = 0.1, Position = UDim2.fromOffset(16, 64), Size = UDim2.fromOffset(210, 46) }, gui)
+	-- Монеты и очки навыков — справа сверху: левый верх занимает чат Roblox, верх — его топбар.
+	local inset = GuiService:GetGuiInset()
+	refs.TopY = math.max(inset.Y, 36) + 10
+	local coins = new("Frame", { BackgroundColor3 = THEME.Panel, BackgroundTransparency = 0.1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, refs.TopY), Size = UDim2.fromOffset(210, 46) }, gui)
 	corner(coins, 12)
 	stroke(coins, THEME.Gold, 2, 0.2)
 	gradient(coins, rgb(255, 255, 255), rgb(170, 170, 190), 90)
@@ -594,27 +640,41 @@ local function buildHud()
 	refs.CoinValue.Changed:Connect(function(value)
 		refs.Coins.Text = Rules.FormatNumber(math.floor(value + 0.5))
 	end)
-	local points = new("Frame", { BackgroundColor3 = THEME.Panel, BackgroundTransparency = 0.1, Position = UDim2.fromOffset(16, 116), Size = UDim2.fromOffset(210, 32) }, gui)
+	local points = new("Frame", { BackgroundColor3 = THEME.Panel, BackgroundTransparency = 0.1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, refs.TopY + 52), Size = UDim2.fromOffset(210, 32) }, gui)
 	corner(points, 10)
 	stroke(points, rgb(140, 130, 255), 1.5, 0.3)
 	refs.Points = label(points, "", 14, { Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -20, 1, 0), TextColor3 = rgb(190, 180, 255) })
+	refs.PointsFrame = points
 
-	-- Кнопки меню (слева по центру).
-	local menu = new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 16, 0.5, 0), Size = UDim2.fromOffset(174, 222) }, gui)
- refs.Menu = menu
- refs.MenuScale = new("UIScale",{Scale=1},menu)
- new("UIListLayout", { Padding = UDim.new(0, 10) }, menu)
- for _, data in ipairs({
-  {"Inventory","Инвентарь [B]","Inventory",rgb(70,170,130)},
-  {"Stats","Прокачка [C]","Stats",rgb(120,110,220)},
-  {"Shop","Магазин","Shop",rgb(188,133,55)},
-  {"Teleport","Телепорты","Teleports",rgb(68,143,185)},
- }) do
-  local target = data[3]
-  local b = button(menu,"",data[4],function() UI.Toggle(target) end,{Size=UDim2.fromOffset(174,44)})
-  Icons.Draw(b,data[1],data[4],UDim2.fromOffset(5,5),UDim2.fromOffset(34,34))
-  label(b,data[2],14,{Position=UDim2.fromOffset(48,0),Size=UDim2.new(1,-54,1,0)})
- end
+	-- Док-бар справа по центру: 3D-иконка, подпись с обводкой и бейдж горячей клавиши.
+	local menu = new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -16, 0.55, 0), Size = UDim2.fromOffset(84, 4 * 92) }, gui)
+	refs.Menu = menu
+	refs.MenuScale = new("UIScale", { Scale = 1 }, menu)
+	refs.MenuLayout = new("UIListLayout", { Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Right, SortOrder = Enum.SortOrder.LayoutOrder }, menu)
+	refs.DockButtons = {}
+	for index, data in ipairs(DOCK) do
+		local target = data.Panel
+		local b = button(menu, "", data.Color, function()
+			UI.Toggle(target)
+		end, { Size = UDim2.fromOffset(84, 84), LayoutOrder = index })
+		corner(b, 16)
+		b:FindFirstChildOfClass("UIGradient").Color = ColorSequence.new(rgb(255, 255, 255), rgb(120, 120, 140))
+		local glow = b:FindFirstChildOfClass("UIStroke")
+		local icon = IconRenderer.Hud(b, data.Id, { Position = UDim2.fromOffset(6, 2), Size = UDim2.new(1, -12, 1, -24) })
+		local caption = label(b, data.Name, 12, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -3), Size = UDim2.new(1, -4, 0, 18), TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = false, Font = Enum.Font.GothamBlack, ZIndex = 3 })
+		new("UIStroke", { Color = rgb(12, 12, 20), Thickness = 1.6 }, caption)
+		local key = new("Frame", { BackgroundColor3 = rgb(250, 250, 255), Position = UDim2.fromOffset(-6, -6), Size = UDim2.fromOffset(24, 24), ZIndex = 4 }, b)
+		corner(key, 6)
+		stroke(key, rgb(20, 20, 30), 2, 0)
+		label(key, Config.Hotkeys[data.Id] or "", 14, { Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = rgb(20, 22, 34), Font = Enum.Font.GothamBlack, ZIndex = 5 })
+		b.MouseEnter:Connect(function()
+			IconRenderer.Spin(icon, 1.6)
+		end)
+		b.MouseLeave:Connect(function()
+			IconRenderer.Spin(icon, 0)
+		end)
+		refs.DockButtons[data.Id] = { Button = b, Glow = glow, Caption = caption }
+	end
 
 	-- ХП и опыт (снизу по центру).
 	local bars = new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -18), Size = UDim2.fromOffset(420, 64) }, gui)
@@ -653,12 +713,12 @@ local function buildHud()
 	refs.Vignette = new("UIStroke", { Color = rgb(220, 30, 40), Thickness = 26, Transparency = 1 }, vignette)
 	refs.HPText = label(hp, "", 15, { Font = Enum.Font.GothamBlack, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, TextStrokeTransparency = 0.3, ZIndex = 3 })
 
-	-- Баффы (справа сверху).
-	refs.Buffs = new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 64), Size = UDim2.fromOffset(220, 200) }, gui)
-	new("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Right }, refs.Buffs)
+	-- Баффы (слева снизу; на сенсорных экранах — справа, подальше от джойстика).
+	refs.Buffs = new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 16, 1, -24), Size = UDim2.fromOffset(220, 200) }, gui)
+	refs.BuffLayout = new("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Left, VerticalAlignment = Enum.VerticalAlignment.Bottom }, refs.Buffs)
 
 	-- Тосты (сверху по центру).
-	refs.Toasts = new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 70), Size = UDim2.fromOffset(460, 220) }, gui)
+	refs.Toasts = new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, refs.TopY + 150), Size = UDim2.fromOffset(460, 220) }, gui)
 	new("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }, refs.Toasts)
 
 	-- Кнопка атаки для сенсорных экранов.
@@ -777,6 +837,200 @@ local function buildExpansionPanels()
  gradient(refs.BossFill,rgb(255,198,90),rgb(220,60,65),0)
  refs.BossHealth=label(refs.Boss,"",12,{Position=UDim2.fromOffset(12,51),Size=UDim2.new(1,-24,0,16),TextXAlignment=Enum.TextXAlignment.Center})
 end
+local function keyCaps(parent, text)
+	-- Подсказка управления: «клавиши» в рамках, разделитель «|» между группами.
+	local row = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, parent)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 6) }, row)
+	local order = 0
+	for group in string.gmatch(text, "[^|]+") do
+		local name, key = string.match(group, "^%s*(.-):%s*(.-)%s*$")
+		if name then
+			order = order + 1
+			local l = label(row, name .. ":", 15, { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 30), TextWrapped = false, LayoutOrder = order })
+			new("UIStroke", { Color = rgb(10, 10, 16), Thickness = 1.4 }, l)
+			order = order + 1
+			local cap = new("Frame", { BackgroundColor3 = rgb(245, 245, 255), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 28), LayoutOrder = order }, row)
+			corner(cap, 6)
+			stroke(cap, rgb(20, 20, 30), 2, 0)
+			new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }, cap)
+			label(cap, key, 14, { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 28), TextWrapped = false, TextColor3 = rgb(20, 22, 34), Font = Enum.Font.GothamBlack })
+			order = order + 1
+			label(row, "  ", 15, { Size = UDim2.fromOffset(8, 30), LayoutOrder = order })
+		end
+	end
+	return row
+end
+
+local function buildUpdatePanels()
+	-- Подземелья: список данжей.
+	local body = makePanel("Dungeons", "💀 Подземелья", UDim2.fromOffset(620, 480), rgb(150, 70, 200))
+	label(body, "Зачисти 3 волны усиленных мобов и победи босса, пока не вышло время. Награда — сундук с редкой добычей.", 13, { Size = UDim2.new(1, 0, 0, 34), TextColor3 = THEME.Muted, Font = Enum.Font.GothamMedium })
+	refs.DungeonList = scroller(body, { Position = UDim2.fromOffset(0, 40), Size = UDim2.new(1, 0, 1, -40) })
+
+	-- Индикатор забега сверху по центру: волна, таймер, сколько врагов осталось.
+	local bar = new("Frame", { Name = "DungeonBar", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, refs.TopY), Size = UDim2.fromOffset(460, 68), BackgroundColor3 = THEME.Panel, BackgroundTransparency = 0.06, Visible = false }, gui)
+	corner(bar, 12)
+	refs.DungeonStroke = stroke(bar, THEME.Accent, 2, 0.1)
+	refs.DungeonBar = bar
+	refs.DungeonTitle = label(bar, "", 15, { Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(14, 4), Size = UDim2.new(1, -210, 0, 22), TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd })
+	refs.DungeonWave = label(bar, "", 14, { Position = UDim2.fromOffset(14, 26), Size = UDim2.new(0.5, -40, 0, 18), TextColor3 = THEME.Gold, TextWrapped = false })
+	refs.DungeonEnemies = label(bar, "", 14, { Position = UDim2.new(0.5, -26, 0, 26), Size = UDim2.new(0.5, -90, 0, 18), TextColor3 = rgb(255, 150, 150), TextWrapped = false })
+	refs.DungeonTimer = label(bar, "", 22, { Font = Enum.Font.GothamBlack, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -110, 0, 6), Size = UDim2.fromOffset(84, 30), TextXAlignment = Enum.TextXAlignment.Right, TextWrapped = false })
+	local track = new("Frame", { BackgroundColor3 = rgb(50, 40, 60), Position = UDim2.fromOffset(14, 50), Size = UDim2.new(1, -124, 0, 8) }, bar)
+	corner(track, 4)
+	refs.DungeonFill = new("Frame", { BackgroundColor3 = rgb(255, 255, 255), Size = UDim2.fromScale(0, 1) }, track)
+	corner(refs.DungeonFill, 4)
+	gradient(refs.DungeonFill, rgb(255, 210, 90), rgb(240, 90, 70), 0)
+	local leaveConfirmUntil = 0
+	refs.DungeonLeave = button(bar, "Покинуть", THEME.Red, function()
+		if os.clock() > leaveConfirmUntil then
+			leaveConfirmUntil = os.clock() + 3
+			refs.DungeonLeave.Text = "Точно?"
+			task.delay(3, function()
+				if os.clock() >= leaveConfirmUntil and refs.DungeonLeave then
+					refs.DungeonLeave.Text = "Покинуть"
+				end
+			end)
+		else
+			leaveConfirmUntil = 0
+			refs.DungeonLeave.Text = "Покинуть"
+			request("LeaveDungeon")
+		end
+	end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(90, 36), TextSize = 13 })
+
+	-- Трекер гайда новичка (слева, ниже окна чата).
+	local tracker = new("Frame", { Name = "Tutorial", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 16, 0.6, 0), Size = UDim2.fromOffset(340, 136), BackgroundColor3 = THEME.Panel, BackgroundTransparency = 0.06, Visible = false }, gui)
+	corner(tracker, 12)
+	stroke(tracker, THEME.Gold, 2, 0.1)
+	gradient(tracker, rgb(255, 255, 255), rgb(180, 180, 200), 90)
+	refs.Tutorial = tracker
+	refs.TutorialScale = new("UIScale", { Scale = 1 }, tracker)
+	refs.TutorialHeader = label(tracker, "", 14, { Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 0, 18), TextColor3 = THEME.Gold, TextWrapped = false })
+	refs.TutorialText = label(tracker, "", 15, { Position = UDim2.fromOffset(14, 28), Size = UDim2.new(1, -28, 0, 56), TextYAlignment = Enum.TextYAlignment.Top })
+	new("UIStroke", { Color = rgb(10, 10, 16), Thickness = 1.2, Transparency = 0.3 }, refs.TutorialText)
+	refs.TutorialProgress = label(tracker, "", 13, { Position = UDim2.fromOffset(14, 86), Size = UDim2.new(1, -150, 0, 40), TextColor3 = THEME.Green, TextYAlignment = Enum.TextYAlignment.Top })
+	refs.TutorialSkip = button(tracker, "Пропустить гайд", THEME.Gray, function()
+		if os.clock() > skipConfirmUntil then
+			skipConfirmUntil = os.clock() + 4
+			refs.TutorialSkip.Text = "Точно? Без награды"
+			task.delay(4, function()
+				if os.clock() >= skipConfirmUntil and refs.TutorialSkip then
+					refs.TutorialSkip.Text = "Пропустить гайд"
+				end
+			end)
+		else
+			skipConfirmUntil = 0
+			refs.TutorialSkip.Text = "Пропустить гайд"
+			request("SkipTutorial")
+		end
+	end, { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -10, 1, -10), Size = UDim2.fromOffset(128, 30), TextSize = 12 })
+
+	-- Подсказка управления внизу экрана над полосками ХП.
+	local controls = new("Frame", { Name = "Controls", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -96), Size = UDim2.fromOffset(640, 44), BackgroundColor3 = THEME.Panel, BackgroundTransparency = 0.15, Visible = false }, gui)
+	corner(controls, 12)
+	stroke(controls, THEME.Accent, 1.5, 0.2)
+	local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	keyCaps(controls, touchOnly and "Движение: джойстик | Атака: ⚔ | NPC и порталы: кнопка подсказки" or Config.Tutorial.Controls)
+	refs.Controls = controls
+	refs.ControlsScale = new("UIScale", { Scale = 1 }, controls)
+end
+
+local function refreshTutorial()
+	if not refs.Tutorial or not state then
+		return
+	end
+	local steps = Config.Tutorial.Steps
+	local index = state.Tutorial or (#steps + 1)
+	local step = steps[index]
+	refs.Tutorial.Visible = step ~= nil and not (dungeon and dungeon.Active)
+	refs.Controls.Visible = step ~= nil and index == 1
+	tutorialHighlight = step and step.Highlight or nil
+	if not step then
+		return
+	end
+	refs.TutorialHeader.Text = "🧭 ГАЙД НОВИЧКА  •  ШАГ " .. index .. "/" .. #steps
+	refs.TutorialText.Text = step.Text
+	local reward = "Награда за гайд: " .. Config.Tutorial.RewardCoins .. " 🪙 + " .. Config.Items[Config.Tutorial.RewardItem].Name
+	if (step.Goal or 1) > 1 then
+		refs.TutorialProgress.Text = "Прогресс: " .. (state.TutorialProgress or 0) .. " / " .. step.Goal .. "\n" .. reward
+	else
+		refs.TutorialProgress.Text = reward
+	end
+end
+
+local function refreshDungeons()
+	if not state or not refs.DungeonList then
+		return
+	end
+	clear(refs.DungeonList)
+	local order = 0
+	if dungeon and dungeon.Active then
+		order = order + 1
+		local c = card(refs.DungeonList, 60, order)
+		label(c, "Ты сейчас в подземелье: " .. tostring(dungeon.Name), 15, { Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -170, 1, 0), TextColor3 = THEME.Gold })
+		button(c, "Покинуть", THEME.Red, function()
+			request("LeaveDungeon")
+			UI.Close()
+		end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(140, 40) })
+	end
+	for _, id in ipairs(Config.DungeonOrder) do
+		local def = Config.Dungeons[id]
+		order = order + 1
+		local c = card(refs.DungeonList, 116, order)
+		local iconBack = new("Frame", { BackgroundColor3 = rgb(255, 255, 255), Position = UDim2.fromOffset(10, 13), Size = UDim2.fromOffset(90, 90) }, c)
+		corner(iconBack, 12)
+		gradient(iconBack, def.Color, THEME.Panel, 90)
+		IconRenderer.Hud(iconBack, "Dungeons")
+		label(c, def.Name, 18, { Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(112, 8), Size = UDim2.new(1, -270, 0, 24), TextColor3 = def.Color, TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd })
+		local boss = Config.Mobs[def.Boss]
+		label(c, "Ур. " .. def.Level .. "+  •  3 волны + босс «" .. boss.Name .. "»  •  " .. Rules.FormatTime(def.TimeLimit), 13, { Position = UDim2.fromOffset(112, 34), Size = UDim2.new(1, -270, 0, 34), TextColor3 = THEME.Muted })
+		label(c, def.Description, 12, { Font = Enum.Font.GothamMedium, Position = UDim2.fromOffset(112, 70), Size = UDim2.new(1, -270, 0, 36), TextColor3 = THEME.Text, TextYAlignment = Enum.TextYAlignment.Top })
+		local allowed = state.Level >= def.Level
+		local target = id
+		button(c, allowed and "Войти" or ("Ур. " .. def.Level .. "+"), allowed and THEME.Green or THEME.Gray, function()
+			if allowed then
+				request("EnterDungeon", target)
+				UI.Close()
+			else
+				UI.Toast("Подземелье откроется на " .. def.Level .. " уровне.", "error")
+			end
+		end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(140, 44) })
+	end
+end
+
+local function refreshDungeonBar()
+	if not refs.DungeonBar then
+		return
+	end
+	local active = dungeon ~= nil and dungeon.Active == true
+	refs.DungeonBar.Visible = active
+	if not active then
+		return
+	end
+	local def = Config.Dungeons[dungeon.Id]
+	refs.DungeonStroke.Color = def and def.Color or THEME.Accent
+	refs.DungeonTitle.Text = "💀 " .. tostring(dungeon.Name)
+	local stage = dungeon.Stage
+	if stage == "Countdown" then
+		refs.DungeonWave.Text = "Приготовься!"
+	elseif stage == "Victory" then
+		refs.DungeonWave.Text = "ПОБЕДА! Открой сундук"
+	elseif stage == "Boss" then
+		refs.DungeonWave.Text = "Волна " .. dungeon.Wave .. "/" .. dungeon.Waves .. " • БОСС"
+	elseif stage == "Break" then
+		refs.DungeonWave.Text = "Волна " .. dungeon.Wave .. "/" .. dungeon.Waves .. " зачищена"
+	else
+		refs.DungeonWave.Text = "Волна " .. dungeon.Wave .. "/" .. dungeon.Waves
+	end
+	local total = math.max(1, dungeon.Total or 1)
+	refs.DungeonEnemies.Text = (stage == "Wave" or stage == "Boss") and ("Врагов: " .. dungeon.Remaining .. " / " .. total) or ""
+	local done = stage == "Victory" and 1 or ((dungeon.Wave - 1) + (total - (dungeon.Remaining or 0)) / total) / math.max(1, dungeon.Waves)
+	if stage == "Countdown" then
+		done = 0
+	end
+	tween(refs.DungeonFill, 0.3, { Size = UDim2.fromScale(math.clamp(done, 0, 1), 1) })
+end
+
 local function refreshTravel()
  if not state or not refs.TravelList then return end
  clear(refs.TravelList)
@@ -792,6 +1046,16 @@ local function refreshTravel()
    request("Teleport",target)
   end,{AnchorPoint=Vector2.new(1,0.5),Position=UDim2.new(1,-12,0.5,0),Size=UDim2.fromOffset(128,40)})
  end
+ local shop = card(refs.TravelList, 76, #Config.IslandOrder + 1)
+ local coinBack = new("Frame", { BackgroundColor3 = rgb(255, 255, 255), Position = UDim2.fromOffset(12, 8), Size = UDim2.fromOffset(60, 60) }, shop)
+ corner(coinBack, 10)
+ gradient(coinBack, THEME.Gold, THEME.Panel, 90)
+ IconRenderer.Hud(coinBack, "Shop")
+ label(shop, "Магазин и поддержка", 17, { Position = UDim2.fromOffset(84, 10), Size = UDim2.new(1, -235, 0, 26), TextColor3 = THEME.Gold })
+ label(shop, "Кузница на рынке Поляны: оружие, броня, зелья", 13, { Position = UDim2.fromOffset(84, 38), Size = UDim2.new(1, -235, 0, 30), TextColor3 = THEME.Muted })
+ button(shop, "Открыть", THEME.Gold, function()
+  UI.Open("Shop")
+ end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(128, 40) })
 end
 local function updateBoss(dt)
  if not refs.Boss then return end
@@ -820,27 +1084,48 @@ local function updateBoss(dt)
  local camera=workspace.CurrentCamera
  if camera then
   local viewport=camera.ViewportSize
+  local touch=UserInputService.TouchEnabled
   refs.Bars.Size=UDim2.fromOffset(math.min(420,viewport.X-32),64)
   refs.Toasts.Size=UDim2.fromOffset(math.min(460,viewport.X-24),220)
-  local compact=viewport.X<700 or viewport.Y<500
-  refs.Menu.Size=UDim2.fromOffset(compact and 54 or 174,222)
-  refs.MenuScale.Scale=viewport.Y<480 and 0.75 or 1
-  refs.Menu.AnchorPoint=Vector2.new(0,viewport.Y<480 and 0 or 0.5)
-  refs.Menu.Position=viewport.Y<480 and UDim2.fromOffset(16,154) or UDim2.new(0,16,0.5,0)
-  for _,b in ipairs(refs.Menu:GetChildren()) do
-   if b:IsA("TextButton") then
-    b.Size=UDim2.fromOffset(compact and 54 or 174,44)
-    for _,child in ipairs(b:GetChildren()) do if child:IsA("TextLabel") then child.Visible=not compact end end
-   end
+  -- Верхний центр: на узких экранах опускаем ниже плашек монет, чтобы не перекрывать их.
+  local topCenter = viewport.X < 1000 and refs.TopY + 92 or refs.TopY
+  local dungeonShown = refs.DungeonBar and refs.DungeonBar.Visible
+  if refs.DungeonBar then
+   refs.DungeonBar.Position = UDim2.new(0.5, 0, 0, topCenter)
+   refs.DungeonBar.Size = UDim2.fromOffset(math.min(460, viewport.X - 32), 68)
   end
-  if compact then refs.Buffs.Position=UDim2.new(1,-16,0,viewport.Y<480 and 64 or 270) else refs.Buffs.Position=UDim2.new(1,-16,0,64) end
   refs.Boss.Size=UDim2.fromOffset(math.min(470,viewport.X-32),70)
-  refs.Boss.Position=UDim2.new(0.5,0,0,viewport.X<850 and 158 or 55)
+  refs.Boss.Position=UDim2.new(0.5,0,0,topCenter + (dungeonShown and 76 or 0))
+  refs.Toasts.Position=UDim2.new(0.5,0,0,topCenter + (dungeonShown and 76 or 0) + ((refs.Boss.Visible) and 78 or 0) + 6)
+  -- Док справа: масштаб под высоту экрана, сверху — плашки монет, снизу — место под кнопку атаки на тач-экранах.
+  local dockTop = refs.TopY + 96
+  local dockRoom = viewport.Y - dockTop - (touch and 200 or 30)
+  local dockHeight = #DOCK * 92
+  local dockScale = math.clamp(dockRoom / dockHeight, 0.5, 1)
+  refs.MenuScale.Scale = dockScale
+  refs.Menu.AnchorPoint = Vector2.new(1, 0)
+  refs.Menu.Position = UDim2.new(1, -16, 0, dockTop + math.max(0, (dockRoom - dockHeight * dockScale) / 2))
+  if touch then
+   refs.Buffs.AnchorPoint = Vector2.new(1, 0)
+   refs.Buffs.Position = UDim2.new(1, -16 - 84 * dockScale - 12, 0, refs.TopY + 92)
+   refs.BuffLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+   refs.BuffLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+   refs.Tutorial.AnchorPoint = Vector2.new(0, 0)
+   refs.Tutorial.Position = UDim2.new(0, 16, 0, refs.TopY + 44)
+  end
+  local small = viewport.X < 760 or viewport.Y < 520
+  refs.TutorialScale.Scale = small and 0.8 or 1
+  refs.ControlsScale.Scale = math.min(1, (viewport.X - 24) / 640)
   for _,panel in pairs(panels) do
    local base=panel.Root.Size
    panel.TargetScale=math.min(1,(viewport.X-24)/base.X.Offset,(viewport.Y-80)/base.Y.Offset)
    if panel.Root.Visible and panel.Scale.Scale>panel.TargetScale+0.01 then panel.Scale.Scale=panel.TargetScale end
   end
+ end
+ if dungeon and dungeon.Active and refs.DungeonTimer then
+  local left = math.max(0, (dungeon.TimeLeft or 0) - (os.clock() - dungeonReceivedAt))
+  refs.DungeonTimer.Text = Rules.FormatTime(left)
+  refs.DungeonTimer.TextColor3 = (left < 30 and dungeon.Stage ~= "Victory") and THEME.Red or THEME.Text
  end
 end
 
@@ -860,12 +1145,13 @@ function UI.Init(remoteFolder, attackCallback)
 	buildMerchant()
  buildBlacksmith()
  buildExpansionPanels()
+ buildUpdatePanels()
  refs.ClickSound = new("Sound",{Name="UIClick",SoundId="rbxasset://sounds/electronicpingshort.wav",Volume=0.25},gui)
  -- Выезд HUD при входе.
 	refs.Bars.Position = UDim2.new(0.5, 0, 1, 120)
 	tween(refs.Bars, 0.7, { Position = UDim2.new(0.5, 0, 1, -18) }, Enum.EasingStyle.Back)
-	refs.CoinFrame.Position = UDim2.fromOffset(-240, 64)
-	tween(refs.CoinFrame, 0.6, { Position = UDim2.fromOffset(16, 64) }, Enum.EasingStyle.Back)
+	refs.CoinFrame.Position = UDim2.new(1, 240, 0, refs.TopY)
+	tween(refs.CoinFrame, 0.6, { Position = UDim2.new(1, -16, 0, refs.TopY) }, Enum.EasingStyle.Back)
 	local connection
 	connection = RunService.Heartbeat:Connect(function(dt)
 		if not gui.Parent then
@@ -885,12 +1171,16 @@ end
 
 function UI.Refresh()
 	refreshHud()
+	refreshTutorial()
+	refreshDungeonBar()
 	if currentPanel == "Stats" then
 		refreshStats()
 	elseif currentPanel == "Inventory" then
 		refreshInventory()
 	elseif currentPanel == "Teleports" then
   refreshTravel()
+	elseif currentPanel == "Dungeons" then
+		refreshDungeons()
 	elseif currentPanel == "Merchant" then
 		refreshMerchant()
 	elseif currentPanel == "Blacksmith" then
@@ -986,9 +1276,42 @@ function UI.Toggle(name)
 end
 
 function UI.OpenShop(kind)
-	if kind == "Merchant" or kind == "Blacksmith" then
+	if kind == "Merchant" or kind == "Blacksmith" or kind == "Dungeons" then
 		UI.Open(kind)
 	end
+end
+
+-- Состояние забега в подземелье от сервера (Remotes.Dungeon). Внутри арены свет приглушается локально.
+function UI.SetDungeon(payload)
+	if type(payload) ~= "table" then
+		return
+	end
+	dungeon = payload
+	dungeonReceivedAt = os.clock()
+	local Lighting = game:GetService("Lighting")
+	local tint = Lighting:FindFirstChild("GladeDungeonTint")
+	if payload.Active then
+		if not tint then
+			tint = new("ColorCorrectionEffect", { Name = "GladeDungeonTint", Brightness = 0, Contrast = 0, Saturation = 0 }, Lighting)
+			tween(tint, 1.2, { Brightness = -0.1, Contrast = 0.18, Saturation = -0.12 })
+		end
+		local def = Config.Dungeons[payload.Id]
+		tint.TintColor = def and Color3.new(1, 1, 1):Lerp(def.Color, 0.12) or Color3.new(1, 1, 1)
+	elseif tint then
+		tween(tint, 0.8, { Brightness = 0, Contrast = 0, Saturation = 0 }).Completed:Connect(function()
+			tint:Destroy()
+		end)
+	end
+	-- Состояние приходит дважды в секунду: перестраиваем только индикатор, а не открытые окна.
+	refreshDungeonBar()
+	refreshTutorial()
+	if currentPanel == "Dungeons" and payload.Stage ~= "Wave" and payload.Stage ~= "Boss" then
+		refreshDungeons()
+	end
+end
+
+function UI.InDungeon()
+	return dungeon ~= nil and dungeon.Active == true
 end
 
 function UI.CurrentShop()

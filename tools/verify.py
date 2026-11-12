@@ -205,10 +205,11 @@ def run_tests(files, luau):
     shared = {module_name(n): s for (f, n), s in files.items() if f == "shared"}
     with open(os.path.join(ROOT, "tests", "rules_spec.luau"), encoding="utf-8") as f:
         spec = f.read()
-    expansion = os.path.join(ROOT, "tests", "expansion_spec.luau")
-    if os.path.isfile(expansion):
-        with open(expansion, encoding="utf-8") as f:
-            spec += "\n" + f.read()
+    for extra in ("expansion_spec.luau", "update3_spec.luau"):
+        path = os.path.join(ROOT, "tests", extra)
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as f:
+                spec += "\n" + f.read()
     parts = [STUBS, "local __src, __cache = {}, {}",
              "local function __load(name) if __cache[name] == nil then __cache[name] = __src[name]() end return __cache[name] end",
              "local __parent = { WaitForChild = function(_, n) return { __module = n } end, FindFirstChild = function(_, n) return { __module = n } end }"]
@@ -229,6 +230,35 @@ def run_tests(files, luau):
         fail("юнит-тесты Rules не прошли")
 
 
+SMOKE_MODULES = ["Config", "Rules", "Models", "Animator", "ExpansionWorld", "DungeonWorld", "DungeonService", "TutorialService",
+                 "TravelService", "MobService", "EconomyService", "UI", "Icons", "IconRenderer", "Guide", "Effects"]
+
+
+def run_smoke(luau):
+    print("[6] Mock-рантайм (tests/runtime_smoke.luau в luau)")
+    path = os.path.join(ROOT, "tests", "runtime_smoke.luau")
+    if not luau or not os.path.isfile(path):
+        fail("luau или runtime_smoke.luau не найден — смоук не запущен")
+        return
+    chunks = []
+    for name in SMOKE_MODULES:
+        candidates = [os.path.join(SRC, folder, name + ".luau") for folder in FOLDERS]
+        source_path = next(p for p in candidates if os.path.isfile(p))
+        with open(source_path, encoding="utf-8") as f:
+            source = f.read()
+        chunks.append("__sources['%s']=function() local script={Parent=__parent}; local require=__require; %s\nend" % (name, source))
+    with open(path, encoding="utf-8") as f:
+        harness = f.read().replace("-- INSERT_MODULES", "\n".join(chunks))
+    tmp = os.path.join(tempfile.gettempdir(), "gladeslayer_smoke.luau")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(harness)
+    res = subprocess.run([luau, tmp], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out = (res.stdout + res.stderr).strip()
+    print("  " + out.replace("\n", "\n  ")[-1500:])
+    if res.returncode != 0 or "PASS" not in out:
+        fail("mock-рантайм смоук не прошёл")
+
+
 def main():
     extra = None
     if "--luau" in sys.argv:
@@ -239,6 +269,7 @@ def main():
     check_dependencies(files)
     check_protocol(files)
     run_tests(files, find_tool("luau", extra))
+    run_smoke(find_tool("luau", extra))
     print()
     if errors:
         print("ИТОГ: %d проблем(ы)" % len(errors))

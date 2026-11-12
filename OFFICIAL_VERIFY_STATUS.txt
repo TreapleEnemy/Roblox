@@ -1,5 +1,4 @@
-Официальные luau / luau-compile / luau-analyze в среде не установлены.
-Попытка загрузки Luau CLI из официального GitHub release завершилась ошибкой:
-URLError: <urlopen error [Errno -2] Name or service not known>
-Roblox Studio отсутствует. Визуальная и игровая QA в движке НЕ выполнена.
-Фактически выполнены portable_verify.py и проверка сборки XML; см. VERIFY_REPORT.txt.
+Официальный Luau CLI (luau, luau-compile, luau-analyze; последний GitHub release) использован для проверки Обновления 3:
+python tools/verify.py --luau <dir> — синтаксис, глобалы, зависимости, протокол, 570 юнит-проверок и mock-рантайм на 296 проверок.
+Roblox Studio в среде отсутствует: визуальная и игровая QA в движке НЕ выполнена.
+См. VERIFY_REPORT.txt.

@@ -224,6 +224,47 @@ CLIPS.MobDeath = {
  key(0.55, "Quad", "In", { Torso = {72,0,25,P=V3(0,-1.5,0)}, Head = {10,0,0}, RightLeg = {-20}, LeftLeg = {15} }),
  hold(0.3),
 }
+-- Маг: посох поднимается (0.5 с), выброс вперёд — момент выстрела на 0.8 с.
+CLIPS.MageCast = {
+ key(0.5, "Sine", "Out", { Torso = {-8,-10,0}, Head = {-12,0,0}, RightArm = {160,0,12}, LeftArm = {40,20,-30} }),
+ key(0.3, "Quad", "In", { Torso = {10,14,0}, Head = {8,0,0}, RightArm = {85,-6,4}, LeftArm = {70,0,-20} }),
+ hold(0.15),
+ key(0.35, "Quad", "InOut"),
+}
+-- Призрак: быстрый двойной взмах когтями, удар на 0.4 с.
+CLIPS.WraithSwipe = {
+ key(0.2, "Quad", "Out", { Torso = {6,-20,0}, Head = {0,14,0}, RightArm = {100,-30,60}, LeftArm = {100,30,-60} }),
+ key(0.1, "Quad", "In", { Torso = {-6,24,0}, Head = {0,-10,0}, RightArm = {85,40,10}, LeftArm = {100,10,-40} }),
+ key(0.1, "Quad", "In", { Torso = {-6,-24,0}, Head = {0,10,0}, RightArm = {100,-10,40}, LeftArm = {85,-40,-10} }),
+ hold(0.05),
+ key(0.25, "Quad", "InOut"),
+}
+-- Тяжёлый удар двумя руками сверху, удар на 0.9 с.
+CLIPS.HeavySlam = {
+ key(0.7, "Sine", "Out", { Torso = {-14,0,0}, Head = {-10,0,0}, RightArm = {175,0,10}, LeftArm = {175,0,-10} }),
+ key(0.2, "Quad", "In", { Torso = {26,0,0}, Head = {12,0,0}, RightArm = {40,0,6}, LeftArm = {40,0,-6} }),
+ hold(0.25),
+ key(0.5, "Quad", "InOut"),
+}
+-- Парение призрака: зацикленное покачивание (и для покоя, и для движения).
+CLIPS.WraithFloat = {
+ key(0.9, "Sine", "InOut", { Torso = {4,5,3,P=V3(0,0.35,0)}, Head = {-4,6,0}, RightArm = {18,0,16}, LeftArm = {18,0,-16} }),
+ key(0.9, "Sine", "InOut", { Torso = {7,-5,-3,P=V3(0,-0.1,0)}, Head = {3,-6,0}, RightArm = {10,0,8}, LeftArm = {10,0,-8} }),
+}
+-- Босс призывает миньонов: руки широко вверх, 1.2 с.
+CLIPS.BossSummon = {
+ key(0.6, "Back", "Out", { Torso = {-12,0,0}, Head = {-18,0,0}, RightArm = {150,0,55}, LeftArm = {150,0,-55} }),
+ hold(0.3),
+ key(0.3, "Quad", "InOut"),
+}
+-- Босс-заклинание: рука к небу, затем вниз, 1.5 с.
+CLIPS.BossCast = {
+ key(0.6, "Sine", "Out", { Torso = {-10,-12,0}, Head = {-22,0,0}, RightArm = {178,0,14}, LeftArm = {30,0,-24} }),
+ hold(0.3),
+ key(0.3, "Quad", "In", { Torso = {16,10,0}, Head = {14,0,0}, RightArm = {45,-8,6}, LeftArm = {50,0,-20} }),
+ hold(0.1),
+ key(0.2, "Quad", "InOut"),
+}
 Animator.Clips = CLIPS
 
 function Animator.ClipLength(name, speed)

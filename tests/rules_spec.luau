@@ -19,7 +19,8 @@ for _, itemId in ipairs(Config.ShopOrder) do
 	check("ShopOrder: предмет с ценой " .. itemId, def ~= nil and (def.Price or 0) > 0)
 end
 for mobId, mob in pairs(Config.Mobs) do
-	check("Зона моба существует: " .. mobId, Config.Zones[mob.Zone] ~= nil)
+	-- Мобы подземелий спавнятся по точкам арены и зоны острова не имеют.
+	check("Зона моба существует: " .. mobId, Config.Zones[mob.Zone] ~= nil or (mob.Dungeon == true and mob.Zone == nil))
 	for _, entry in ipairs(mob.Loot) do
 		check("Лут моба существует: " .. mobId .. "/" .. tostring(entry.Item), Config.Items[entry.Item] ~= nil)
 	end

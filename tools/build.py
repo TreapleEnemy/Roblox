@@ -119,7 +119,8 @@ def build_zip():
     zip_path = os.path.join(DIST, "GladeSlayer_src.zip")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for base, dirs, files in os.walk(ROOT):
-            dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git")]
+            # Скрытые служебные каталоги (.git, .hoplite и т. п.) в архив проекта не попадают.
+            dirs[:] = [d for d in dirs if d != "__pycache__" and not d.startswith(".")]
             for filename in files:
                 full = os.path.join(base, filename)
                 if full == zip_path:

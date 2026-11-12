@@ -55,11 +55,12 @@ parts += ["Config=__load('Config'); Rules=__load('Rules'); local passed=0",
  'function check(name,condition) assert(condition,name); passed=passed+1 end',
  (ROOT/'tests/rules_spec.luau').read_text(),
  (ROOT/'tests/expansion_spec.luau').read_text(),
+ (ROOT/'tests/update3_spec.luau').read_text(),
  'print("PASS: "..passed.." pure Rules/config assertions")']
 lua('\n'.join(parts),'rules_and_expansion',True)
 # Additional mock-runtime smoke harness for server-side travel and procedural factories.
 if (ROOT/'tests/runtime_smoke.luau').exists():
-    modules = ['Config','Rules','Models','Animator','ExpansionWorld','TravelService','MobService','EconomyService','UI','Icons','Effects']
+    modules = v.SMOKE_MODULES
     chunks = []
     for name in modules:
         candidates=list((ROOT/'src').glob(f'*/{name}.luau'))
