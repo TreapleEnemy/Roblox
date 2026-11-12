@@ -70,6 +70,8 @@ function Rules.NewProfile()
 		Inventory = {},
 		Equipped = {},
 		Buffs = {},
+		Tutorial = 1,
+		TutorialProgress = 0,
 	}
 	for _, statId in ipairs(Config.StatOrder) do
 		profile.Stats[statId] = 0
@@ -144,6 +146,14 @@ function Rules.Decode(record, now)
 			end
 		end
 	end
+	-- Поля гайда необязательны: старые сохранения той же версии схемы остаются валидными.
+	local doneStep = #Config.Tutorial.Steps + 1
+	if finite(record.Tutorial) then
+		profile.Tutorial = whole(record.Tutorial, 1, doneStep)
+		profile.TutorialProgress = finite(record.TutorialProgress) and whole(record.TutorialProgress, 0, 1000) or 0
+	else
+		profile.Tutorial = (profile.Level >= 3 or profile.Kills >= 10) and doneStep or 1
+	end
 	return profile
 end
 
@@ -160,6 +170,8 @@ function Rules.Snapshot(profile, now)
 		Inventory = {},
 		Equipped = {},
 		Buffs = {},
+		Tutorial = profile.Tutorial or (#Config.Tutorial.Steps + 1),
+		TutorialProgress = profile.TutorialProgress or 0,
 	}
 	for _, statId in ipairs(Config.StatOrder) do
 		record.Stats[statId] = profile.Stats[statId]
@@ -592,5 +604,114 @@ function Rules.DiscardJunk(profile)
   end
  end
  return removed > 0, removed > 0 and ("Удалено мусора: " .. removed .. ".") or "Нет мусора для удаления."
+end
+
+-- Гайд новичка ----------------------------------------------------------------------------------
+function Rules.TutorialActive(profile)
+	return (profile.Tutorial or 1) <= #Config.Tutorial.Steps
+end
+
+function Rules.TutorialStep(profile)
+	if not Rules.TutorialActive(profile) then
+		return nil
+	end
+	return Config.Tutorial.Steps[profile.Tutorial], profile.Tutorial
+end
+
+local function tutorialSatisfied(profile, stepId, event, data)
+	if stepId == "Slimes" then
+		return event == "Kill" and data == "Slime"
+	elseif stepId == "Equip" then
+		return (event == "Equip" and itemDef(data) ~= nil and itemDef(data).Slot == "Weapon") or (event == "Enter" and profile.Equipped.Weapon ~= nil)
+	elseif stepId == "Upgrade" then
+		return event == "Upgrade"
+	elseif stepId == "Sell" then
+		return event == "Sell"
+	end
+	return false
+end
+
+local function finishTutorial(profile)
+	profile.Tutorial = #Config.Tutorial.Steps + 1
+	profile.TutorialProgress = 0
+	local coins = Rules.AddCoins(profile, Config.Tutorial.RewardCoins)
+	local added = Rules.AddItem(profile, Config.Tutorial.RewardItem, 1)
+	return coins, added > 0 and Config.Tutorial.RewardItem or nil
+end
+
+-- Применяет событие к гайду. Возвращает таблицу { Changed, Advanced, Finished, Coins, Item, Granted } или nil.
+-- Granted — предметы, выданные гайдом (гарантированный Старый меч и немного хлама для шага продажи).
+function Rules.TutorialEvent(profile, event, data)
+	local step = Rules.TutorialStep(profile)
+	if not step or not tutorialSatisfied(profile, step.Id, event, data) then
+		return nil
+	end
+	local result = { Changed = true, Advanced = false, Finished = false, Granted = {} }
+	profile.TutorialProgress = (profile.TutorialProgress or 0) + 1
+	while step and profile.TutorialProgress >= (step.Goal or 1) do
+		result.Advanced = true
+		if step.Id == "Slimes" then
+			if Rules.Count(profile, "OldSword") <= 0 and Rules.AddItem(profile, "OldSword", 1) > 0 then
+				table.insert(result.Granted, "OldSword")
+			end
+			if Rules.FreeCount(profile, "SlimeGel") <= 0 and Rules.AddItem(profile, "SlimeGel", 2) > 0 then
+				table.insert(result.Granted, "SlimeGel")
+			end
+		end
+		profile.Tutorial = profile.Tutorial + 1
+		profile.TutorialProgress = 0
+		step = Rules.TutorialStep(profile)
+		if not step then
+			result.Finished = true
+			result.Coins, result.Item = finishTutorial(profile)
+		elseif tutorialSatisfied(profile, step.Id, "Enter", nil) then
+			profile.TutorialProgress = step.Goal or 1
+		end
+	end
+	return result
+end
+
+function Rules.TutorialSkip(profile)
+	if not Rules.TutorialActive(profile) then
+		return false, "Гайд уже пройден."
+	end
+	profile.Tutorial = #Config.Tutorial.Steps + 1
+	profile.TutorialProgress = 0
+	return true, "Гайд пропущен. Удачной охоты!"
+end
+
+-- Подземелья ------------------------------------------------------------------------------------
+function Rules.CanEnterDungeon(profile, dungeonId)
+	local def = type(dungeonId) == "string" and Config.Dungeons[dungeonId]
+	if not def then
+		return false, "Неизвестное подземелье."
+	end
+	if profile.Level < def.Level then
+		return false, "Нужен уровень " .. def.Level .. "."
+	end
+	return true, def.Name
+end
+
+-- Награда сундука после победы над боссом подземелья. roll() -> [0, 1).
+function Rules.DungeonChest(profile, dungeonId, roll, now)
+	local def = Config.Dungeons[dungeonId]
+	local result = { Coins = 0, XP = 0, Items = {}, Levels = 0, Points = 0 }
+	if not def then
+		return result
+	end
+	local chest = def.Chest
+	local low, high = chest.Coins[1], chest.Coins[2]
+	local base = math.min(high, low + math.floor(roll() * (high - low + 1)))
+	result.Coins = Rules.AddCoins(profile, base * Rules.BuffMultiplier(profile, "Coins", now))
+	if profile.Level < Config.MaxLevel then
+		result.XP = math.floor(chest.XP * Rules.BuffMultiplier(profile, "XP", now) + 0.5)
+		result.Levels, result.Points = Rules.AddXP(profile, result.XP)
+	end
+	for _, entry in ipairs(chest.Loot) do
+		if roll() < entry.Chance and Rules.AddItem(profile, entry.Item, 1) > 0 then
+			table.insert(result.Items, entry.Item)
+		end
+	end
+	return result
 end
 return Rules

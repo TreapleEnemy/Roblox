@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("GladeSlayer")
@@ -12,6 +13,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Rules = require(Shared:WaitForChild("Rules"))
 
 local Icons = require(script.Parent:WaitForChild("Icons"))
+local IconRenderer = require(script.Parent:WaitForChild("IconRenderer"))
 local UI = {}
 
 local player = Players.LocalPlayer
@@ -35,6 +37,16 @@ local inventoryFilter = "All"
 local discardConfirmUntil = 0
 local refreshDetails
 local bossSmoothRatio = 1
+local dungeon = nil
+local dungeonReceivedAt = 0
+local skipConfirmUntil = 0
+local tutorialHighlight = nil
+local DOCK = {
+	{ Id = "Inventory", Name = "Инвентарь", Panel = "Inventory", Color = rgb(70, 170, 130) },
+	{ Id = "Stats", Name = "Прокачка", Panel = "Stats", Color = rgb(120, 110, 220) },
+	{ Id = "Dungeons", Name = "Данжи", Panel = "Dungeons", Color = rgb(150, 70, 200) },
+	{ Id = "Teleports", Name = "Телепорты", Panel = "Teleports", Color = rgb(68, 143, 185) },
+}
 
 local THEME = {
 	Panel = rgb(26, 28, 40),
@@ -320,15 +332,18 @@ end
 local function itemCell(parent, itemId, amount, order, equippedSlot)
 	local color = itemColor(itemId)
 	local def = Config.Items[itemId]
-	local cell = new("TextButton", { AutoButtonColor = false, Text = "", BackgroundColor3 = color:Lerp(THEME.Panel,0.72), LayoutOrder = order }, parent)
+	local cell = new("TextButton", { AutoButtonColor = false, Text = "", BackgroundColor3 = color:Lerp(THEME.Panel,0.55), LayoutOrder = order }, parent)
 	corner(cell, 10)
 	local s = stroke(cell, color, selectedItem == itemId and 3 or 1.5, selectedItem == itemId and 0 or 0.25)
 	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	gradient(cell, rgb(255, 255, 255), rgb(175, 175, 190), 90)
-	Icons.Draw(cell,Icons.ItemKind(def),color,UDim2.fromOffset(25,8),UDim2.fromOffset(46,46))
-	label(cell, def and def.Name or itemId, 11, { Position = UDim2.fromOffset(4, 60), Size = UDim2.new(1, -8, 0, 38), TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center, TextColor3 = color, TextStrokeTransparency = 0.5 })
+	-- Градиент редкости: светлый цвет редкости сверху, тёмный низ под подписью.
+	gradient(cell, color:Lerp(rgb(255, 255, 255), 0.25), THEME.Panel, 90)
+	IconRenderer.Item(cell, itemId, { Position = UDim2.fromOffset(6, 4), Size = UDim2.new(1, -12, 0, 60) })
+	label(cell, def and def.Name or itemId, 11, { Position = UDim2.fromOffset(4, 64), Size = UDim2.new(1, -8, 0, 36), TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center, TextColor3 = color:Lerp(rgb(255, 255, 255), 0.35), ZIndex = 2 })
+	new("UIStroke", { Color = rgb(10, 10, 16), Thickness = 1.4, Transparency = 0.1 }, cell:FindFirstChildOfClass("TextLabel"))
 	if amount and amount > 1 then
-		label(cell, "x" .. amount, 13, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 2), Size = UDim2.fromOffset(36, 16), TextXAlignment = Enum.TextXAlignment.Right })
+		local badge = label(cell, "x" .. amount, 13, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 2), Size = UDim2.fromOffset(40, 16), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 3 })
+		new("UIStroke", { Color = rgb(10, 10, 16), Thickness = 1.4 }, badge)
 	end
 	if equippedSlot then
 		local badge = new("Frame", { BackgroundColor3 = THEME.Green, Position = UDim2.fromOffset(4, 4), Size = UDim2.fromOffset(16, 16) }, cell)
@@ -365,6 +380,10 @@ refreshDetails = function()
 	label(d, def.Description or "", 13, { Font = Enum.Font.GothamMedium, Position = UDim2.fromOffset(12, 80), Size = UDim2.new(1, -24, 0, 90), TextYAlignment = Enum.TextYAlignment.Top })
 	label(d, Rules.BonusText(selectedItem), 14, { Position = UDim2.fromOffset(12, 172), Size = UDim2.new(1, -24, 0, 40), TextColor3 = THEME.Green, TextYAlignment = Enum.TextYAlignment.Top })
 	label(d, "Скупщик даст: " .. Rules.FormatNumber(def.Sell or 0) .. " 🪙", 13, { Position = UDim2.fromOffset(12, 216), Size = UDim2.new(1, -24, 0, 18), TextColor3 = THEME.Gold })
+	local preview = new("Frame", { BackgroundColor3 = color:Lerp(THEME.Panel, 0.6), Position = UDim2.fromOffset(12, 240), Size = UDim2.new(1, -24, 1, -306) }, d)
+	corner(preview, 10)
+	gradient(preview, color:Lerp(rgb(255, 255, 255), 0.2), THEME.Panel, 90)
+	IconRenderer.Spin(IconRenderer.Item(preview, selectedItem), 0.9)
 	local equippedSlot = isEquipped(selectedItem)
 	local actionProps = { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.new(1, -24, 0, 42) }
 	if def.Kind == "Gear" then

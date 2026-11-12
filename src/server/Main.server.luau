@@ -16,7 +16,7 @@ local CombatService = require(Server:WaitForChild("CombatService"))
 local EconomyService = require(Server:WaitForChild("EconomyService"))
 local NPCService = require(Server:WaitForChild("NPCService"))
 
-local REMOTE_EVENTS = { "Attack", "State", "FX", "OpenShop", "Toast" }
+local REMOTE_EVENTS = { "Attack", "State", "FX", "OpenShop", "Toast", "Dungeon" }
 
 -- Папка Remotes попадает в ReplicatedStorage только полностью собранной: клиент не увидит половину.
 local function createRemotes()
@@ -62,6 +62,8 @@ CombatService.Init(DataService, MobService, Remotes)
 EconomyService.Init(DataService, Remotes)
 NPCService.Start(Remotes)
 require(Server:WaitForChild("TravelService")).Init(DataService, Remotes)
+require(Server:WaitForChild("DungeonService")).Init(DataService, MobService, Remotes)
+require(Server:WaitForChild("TutorialService")).Init(DataService, Remotes, MobService, EconomyService)
 MobService.Start()
 CharacterService.Start()
 DataService.Start()
@@ -86,7 +88,7 @@ local function onPlayerAdded(player)
 	if DataService.Load(player) and player.Parent then
 		CharacterService.Apply(player, true)
 		sendState(player)
-		toast(player, "Добро пожаловать на Поляну! ЛКМ — удар, C — прокачка, B — инвентарь, E — торговцы.", "info")
+		toast(player, "Добро пожаловать на Поляну! ЛКМ — удар, I — инвентарь, K — прокачка, J — подземелья, T — телепорты, E — NPC и порталы.", "info")
 	end
 end
 

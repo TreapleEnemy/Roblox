@@ -4,12 +4,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("GladeSlayer")
 local Config = require(Shared:WaitForChild("Config"))
 local Rules = require(Shared:WaitForChild("Rules"))
+local DungeonService = require(script.Parent:WaitForChild("DungeonService"))
 local TravelService = {}
 local cooldowns = {}
 local DataService
 function TravelService.Teleport(player, profile, islandId)
  local ok, message = Rules.CanTeleport(profile, islandId)
  if not ok then return false, message end
+ if DungeonService.InDungeon(player) then
+  return false, "Сначала покинь подземелье."
+ end
  local character = player.Character
  local humanoid = character and character:FindFirstChildOfClass("Humanoid")
  local root = character and character:FindFirstChild("HumanoidRootPart")
