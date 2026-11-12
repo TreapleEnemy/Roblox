@@ -126,12 +126,47 @@ local function buildSword(itemId)
 	block(model, "GuardCore", V3(0.4, 0.34, 0.34), CF(0, 0, -0.5), shade(spec.Guard, 0.8), M.Metal)
 	local length = spec.Length
 	local bladeZ = -0.62 - length / 2
-	block(model, "Blade", V3(spec.Width, 0.08, length), CF(0, 0, bladeZ), spec.Blade, M.Metal)
-	block(model, "Fuller", V3(spec.Width * 0.3, 0.1, length * 0.8), CF(0, 0, bladeZ + length * 0.05), shade(spec.Blade, 0.75), M.Metal)
-	block(model, "EdgeL", V3(0.06, 0.06, length), CF(-spec.Width / 2, 0, bladeZ), spec.Edge, M.Metal)
-	block(model, "EdgeR", V3(0.06, 0.06, length), CF(spec.Width / 2, 0, bladeZ), spec.Edge, M.Metal)
-	wedge(model, "TipL", V3(0.08, spec.Width / 2, 0.6), CF(-spec.Width / 4, 0, -0.62 - length - 0.3) * ANG(0, 0, RAD(90)), spec.Edge, M.Metal)
-	wedge(model, "TipR", V3(0.08, spec.Width / 2, 0.6), CF(spec.Width / 4, 0, -0.62 - length - 0.3) * ANG(0, 0, RAD(-90)), spec.Edge, M.Metal)
+	local bladeMat = spec.Material or M.Metal
+	local edgeMat = spec.EdgeMaterial or M.Metal
+	local bladeProps = spec.Transparency and { Transparency = spec.Transparency } or nil
+	if spec.Curve then
+		-- Хопеш: клинок из наклонных сегментов, изгибающихся в сторону.
+		local segs = 5
+		local segLen = length / segs
+		for i = 1, segs do
+			local bend = (i / segs) ^ 2 * 0.9
+			local z = -0.62 - segLen * (i - 0.5)
+			local angle = RAD(-8 - i * 3)
+			block(model, "Blade", V3(spec.Width, 0.08, segLen * 1.15), CF(bend, 0, z) * ANG(0, angle, 0), spec.Blade, bladeMat, bladeProps)
+			block(model, "EdgeR", V3(0.06, 0.06, segLen * 1.15), CF(bend + spec.Width / 2, 0, z) * ANG(0, angle, 0), spec.Edge, edgeMat)
+		end
+		block(model, "CurveTip", V3(spec.Width * 0.7, 0.08, 0.5), CF(1.05, 0, -0.62 - length - 0.1) * ANG(0, RAD(-52), 0), spec.Edge, edgeMat)
+	else
+		block(model, "Blade", V3(spec.Width, 0.08, length), CF(0, 0, bladeZ), spec.Blade, bladeMat, bladeProps)
+		block(model, "Fuller", V3(spec.Width * 0.3, 0.1, length * 0.8), CF(0, 0, bladeZ + length * 0.05), shade(spec.Blade, 0.75), bladeMat, bladeProps)
+		block(model, "EdgeL", V3(0.06, 0.06, length), CF(-spec.Width / 2, 0, bladeZ), spec.Edge, edgeMat)
+		block(model, "EdgeR", V3(0.06, 0.06, length), CF(spec.Width / 2, 0, bladeZ), spec.Edge, edgeMat)
+	end
+	if spec.Glow then
+		block(model, "GlowCore", V3(spec.Width * 0.22, 0.12, length * 0.9), CF(0, 0, bladeZ), spec.Glow, M.Neon)
+	end
+	if spec.Teeth then
+		for i = 1, 4 do
+			block(model, "Tooth", V3(0.12, 0.1, 0.28), CF(spec.Width / 2 + 0.07, 0, -0.9 - i * length / 5) * ANG(0, RAD(30), 0), spec.Blade, bladeMat)
+		end
+	end
+	if spec.Runes then
+		for i = 1, 5 do
+			block(model, "Rune", V3(spec.Width * 0.5, 0.13, 0.16), CF(0, 0, -1.0 - i * length / 6.5) * ANG(0, RAD(i % 2 * 40 - 20), 0), spec.Runes[i % #spec.Runes + 1], M.Neon)
+		end
+		for _, side in ipairs({ -1, 1 }) do
+			wedge(model, "Wing", V3(0.1, 0.5, 0.9), CF(side * 0.85, 0, -0.5) * ANG(0, 0, RAD(side * 90)), spec.Edge, spec.EdgeMaterial or M.Metal)
+		end
+	end
+	if not spec.Curve then
+		wedge(model, "TipL", V3(0.08, spec.Width / 2, 0.6), CF(-spec.Width / 4, 0, -0.62 - length - 0.3) * ANG(0, 0, RAD(90)), spec.Edge, edgeMat)
+		wedge(model, "TipR", V3(0.08, spec.Width / 2, 0.6), CF(spec.Width / 4, 0, -0.62 - length - 0.3) * ANG(0, 0, RAD(-90)), spec.Edge, edgeMat)
+	end
 	if spec.Rust then
 		for i = 1, 3 do
 			block(model, "Rust", V3(spec.Width * 0.55, 0.1, 0.35), CF((i % 2 - 0.5) * 0.08, 0, -1.0 - i * 0.75), rgb(140, 78, 40), M.CorrodedMetal)
@@ -152,10 +187,17 @@ end
 SWORDS.DuneBlade = { Blade = rgb(240, 208, 135), Edge = rgb(255, 245, 210), Guard = rgb(170, 116, 42), Grip = rgb(85, 60, 40), Length = 4.7, Width = 0.48, Trail = rgb(255, 221, 105), Gem = rgb(255, 216, 90) }
 SWORDS.ObsidianBlade = { Blade = rgb(45, 35, 63), Edge = rgb(235, 96, 62), Guard = rgb(85, 65, 100), Grip = rgb(40, 28, 35), Length = 5, Width = 0.52, Trail = rgb(255, 100, 55), Gem = rgb(255, 80, 30) }
 SWORDS.Cataclysm = { Blade = rgb(94, 48, 40), Edge = rgb(255, 211, 92), Guard = rgb(246, 181, 52), Grip = rgb(64, 26, 35), Length = 5.4, Width = 0.6, Trail = rgb(255, 194, 54), Gem = rgb(255, 234, 126) }
+SWORDS.BoneCleaver = { Blade = rgb(228, 222, 204), Edge = rgb(250, 246, 232), Guard = rgb(120, 108, 92), Grip = rgb(70, 54, 40), Length = 3.6, Width = 0.95, Trail = rgb(235, 230, 210), Teeth = true }
+SWORDS.PharaohKhopesh = { Blade = rgb(236, 190, 60), Edge = rgb(255, 240, 160), Guard = rgb(40, 90, 160), Grip = rgb(60, 40, 90), Length = 4.2, Width = 0.5, Trail = rgb(255, 214, 90), Curve = true, Gem = rgb(60, 200, 255) }
+SWORDS.ForgeBlade = { Blade = rgb(40, 36, 44), Edge = rgb(255, 120, 30), Guard = rgb(70, 60, 66), Grip = rgb(34, 24, 24), Length = 5.0, Width = 0.58, Trail = rgb(255, 130, 40), EdgeMaterial = M.Neon, Gem = rgb(255, 150, 40) }
+SWORDS.FrostBlade = { Blade = rgb(150, 215, 255), Edge = rgb(225, 248, 255), Guard = rgb(110, 170, 220), Grip = rgb(36, 60, 100), Length = 5.2, Width = 0.58, Trail = rgb(140, 220, 255), Material = M.Glass, Transparency = 0.35, EdgeMaterial = M.Neon, Glow = rgb(120, 220, 255), Gem = rgb(160, 240, 255) }
+SWORDS.EternalWinter = { Blade = rgb(214, 240, 255), Edge = rgb(255, 255, 255), Guard = rgb(130, 200, 255), Grip = rgb(30, 40, 90), Length = 6.2, Width = 0.7, Trail = rgb(255, 150, 240), Material = M.Glass, Transparency = 0.25, EdgeMaterial = M.Neon, Glow = rgb(150, 235, 255), Gem = rgb(255, 110, 220), Runes = { rgb(255, 110, 220), rgb(110, 240, 255) } }
 local ARMORS = {
 	BeggarRags = { Main = rgb(150, 126, 96), Trim = rgb(110, 84, 56), Material = M.Fabric, Belt = rgb(170, 140, 90), Patches = true },
 	LeatherVest = { Main = rgb(120, 74, 42), Trim = rgb(84, 50, 28), Material = M.Leather, Belt = rgb(60, 40, 26), Pads = rgb(100, 62, 36) },
 	ChainMail = { Main = rgb(150, 156, 166), Trim = rgb(110, 116, 128), Material = M.DiamondPlate, Belt = rgb(70, 50, 34), Pads = rgb(190, 196, 206) },
+	AshenPlate = { Main = rgb(30, 28, 34), Trim = rgb(60, 52, 58), Material = M.Basalt, Belt = rgb(255, 110, 30), Pads = rgb(48, 42, 52), Glow = rgb(255, 110, 30), Spikes = true },
+	CitadelPlate = { Main = rgb(70, 110, 170), Trim = rgb(150, 190, 235), Material = M.DiamondPlate, Belt = rgb(40, 56, 96), Pads = rgb(110, 160, 220), Glow = rgb(120, 220, 255), Emblem = true },
 }
 
 -- Броня: «Handle» совпадает с центром торса (torsoSize — размер торса/UpperTorso носителя).
@@ -178,6 +220,20 @@ local function buildArmor(itemId, torsoSize)
 			block(model, "Pauldron", V3(t.X * 0.42, t.Y * 0.2, t.Z + 0.4), CF(side * t.X * 0.52, t.Y * 0.46, 0) * ANG(0, 0, RAD(-side * 14)), spec.Pads, M.Metal)
 		end
 	end
+	if spec.Spikes then
+		for _, side in ipairs({ -1, 1 }) do
+			wedge(model, "Spike", V3(0.2, t.Y * 0.32, 0.3), CF(side * t.X * 0.6, t.Y * 0.66, 0) * ANG(0, 0, RAD(-side * 20)), spec.Trim, M.Metal)
+		end
+	end
+	if spec.Glow then
+		block(model, "GlowVein", V3(0.1, t.Y * 0.5, 0.06), CF(0, t.Y * 0.05, -t.Z / 2 - 0.1), spec.Glow, M.Neon)
+		block(model, "GlowBar", V3(t.X * 0.55, 0.1, 0.06), CF(0, t.Y * 0.18, -t.Z / 2 - 0.1), spec.Glow, M.Neon)
+	end
+	if spec.Emblem then
+		for _, side in ipairs({ -1, 1 }) do
+			block(model, "Plate", V3(t.X * 0.38, t.Y * 0.4, 0.08), CF(side * t.X * 0.24, -t.Y * 0.05, -t.Z / 2 - 0.1), spec.Trim, M.Metal)
+		end
+	end
 	model.PrimaryPart = handle
 	weldAll(model, handle)
 	model:SetAttribute("ItemId", itemId)
@@ -187,6 +243,9 @@ end
 local AMULETS = {
 	BeggarAmulet = { Chain = rgb(150, 120, 80), Medal = rgb(120, 100, 70), Stone = rgb(90, 110, 80) },
 	HunterCharm = { Chain = rgb(230, 190, 80), Medal = rgb(240, 206, 110), Stone = rgb(170, 90, 255), Fang = true },
+	BoneCharm = { Chain = rgb(150, 130, 100), Medal = rgb(200, 190, 170), Stone = rgb(110, 255, 140), Skull = true },
+	SandKingMask = { Chain = rgb(230, 190, 80), Medal = rgb(240, 200, 90), Stone = rgb(80, 220, 255), Mask = true },
+	WinterRune = { Chain = rgb(170, 210, 240), Medal = rgb(120, 170, 220), Stone = rgb(150, 235, 255), Crystal = true },
 }
 
 -- Амулет висит на груди: «Handle» — центр торса, медальон спереди.
@@ -201,6 +260,25 @@ local function buildAccessory(itemId, torsoSize)
 	block(model, "ChainR", V3(0.08, t.Y * 0.45, 0.08), CF(t.X * 0.16, t.Y * 0.22, front) * ANG(0, 0, RAD(24)), spec.Chain, M.Metal)
 	cylinder(model, "Medal", 0.1, 0.62, CF(0, -0.02, front) * FACING, spec.Medal, M.Metal)
 	ball(model, "Stone", 0.26, CF(0, -0.02, front - 0.08), spec.Stone, M.Neon)
+	if spec.Skull then
+		ball(model, "Skull", 0.5, CF(0, -0.02, front - 0.2), rgb(236, 230, 212), M.SmoothPlastic)
+		block(model, "Jaw", V3(0.3, 0.14, 0.26), CF(0, -0.26, front - 0.2), rgb(220, 214, 196), M.SmoothPlastic)
+		block(model, "SocketL", V3(0.12, 0.12, 0.06), CF(-0.1, 0, front - 0.43), rgb(20, 18, 20), M.SmoothPlastic)
+		block(model, "SocketR", V3(0.12, 0.12, 0.06), CF(0.1, 0, front - 0.43), rgb(20, 18, 20), M.SmoothPlastic)
+	end
+	if spec.Mask then
+		block(model, "MaskFace", V3(0.9, 1.0, 0.1), CF(0, -0.1, front - 0.1), spec.Medal, M.Metal)
+		block(model, "MaskStripeA", V3(0.9, 0.12, 0.12), CF(0, 0.2, front - 0.16), rgb(40, 90, 170), M.Metal)
+		block(model, "MaskStripeB", V3(0.9, 0.12, 0.12), CF(0, -0.15, front - 0.16), rgb(40, 90, 170), M.Metal)
+		block(model, "EyeL", V3(0.16, 0.08, 0.06), CF(-0.2, 0.05, front - 0.2), spec.Stone, M.Neon)
+		block(model, "EyeR", V3(0.16, 0.08, 0.06), CF(0.2, 0.05, front - 0.2), spec.Stone, M.Neon)
+		wedge(model, "Beard", V3(0.2, 0.6, 0.12), CF(0, -0.8, front - 0.12) * ANG(RAD(180), 0, 0), spec.Medal, M.Metal)
+	end
+	if spec.Crystal then
+		for i = -1, 1 do
+			wedge(model, "IceShard", V3(0.16, 0.5 + (1 - math.abs(i)) * 0.35, 0.2), CF(i * 0.2, 0.05 + (1 - math.abs(i)) * 0.1, front - 0.2) * ANG(0, 0, RAD(-i * 14)), spec.Stone, M.Glass, { Transparency = 0.25 })
+		end
+	end
 	if spec.Fang then
 		wedge(model, "Fang", V3(0.12, 0.42, 0.16), CF(0, -0.46, front) * ANG(RAD(180), 0, 0), rgb(240, 236, 220), M.SmoothPlastic)
 		cylinder(model, "Inner", 0.15, 0.66, CF(0, -0.02, front + 0.02) * FACING, rgb(190, 146, 52), M.Metal)
@@ -244,6 +322,25 @@ local function buildTrash(itemId)
 	elseif itemId == "GuardianShard" then
 		handle = wedge(model, "Handle", V3(0.3, 0.9, 0.6), CF(0, 0, 0), rgb(110, 116, 126), M.Slate)
 		block(model, "Rune", V3(0.32, 0.3, 0.08), CF(0, -0.1, 0.05), rgb(90, 220, 255), M.Neon)
+	elseif itemId == "BoneDust" then
+		handle = ball(model, "Handle", 0.7, CF(0, -0.1, 0), rgb(170, 168, 162), M.Sand)
+		ball(model, "Mound", 0.5, CF(0.25, -0.2, 0.1), rgb(150, 148, 142), M.Sand)
+		ball(model, "Mound", 0.4, CF(-0.25, -0.22, -0.1), rgb(186, 184, 176), M.Sand)
+		block(model, "Splinter", V3(0.08, 0.08, 0.4), CF(0, 0.25, 0) * ANG(RAD(20), RAD(40), 0), rgb(232, 226, 210), M.SmoothPlastic)
+	elseif itemId == "FrostShard" then
+		handle = wedge(model, "Handle", V3(0.36, 1.0, 0.36), CF(0, 0, 0), rgb(160, 225, 255), M.Glass, { Transparency = 0.2 })
+		wedge(model, "Side", V3(0.26, 0.6, 0.26), CF(0.22, -0.2, 0.05) * ANG(0, RAD(60), RAD(-18)), rgb(190, 240, 255), M.Glass, { Transparency = 0.25 })
+		block(model, "Glint", V3(0.1, 0.4, 0.1), CF(0, 0, -0.15), rgb(220, 250, 255), M.Neon, { Transparency = 0.3 })
+	elseif itemId == "GlacialHeart" then
+		handle = ball(model, "Handle", 0.95, CF(0, 0, 0), rgb(180, 230, 255), M.Ice, { Transparency = 0.45 })
+		ball(model, "Core", 0.5, CF(0, 0, 0), rgb(60, 150, 255), M.Neon)
+		wedge(model, "Spike", V3(0.2, 0.5, 0.2), CF(0, 0.6, 0), rgb(200, 240, 255), M.Ice, { Transparency = 0.3 })
+		wedge(model, "Spike", V3(0.2, 0.4, 0.2), CF(0.45, 0.3, 0) * ANG(0, 0, RAD(-50)), rgb(200, 240, 255), M.Ice, { Transparency = 0.3 })
+	elseif itemId == "VoidEssence" then
+		handle = ball(model, "Handle", 0.95, CF(0, 0, 0), rgb(220, 200, 255), M.Glass, { Transparency = 0.55 })
+		ball(model, "Orb", 0.52, CF(0, 0, 0), rgb(150, 50, 230), M.Neon)
+		ball(model, "Mote", 0.14, CF(0.25, 0.2, 0.15), rgb(230, 170, 255), M.Neon)
+		cylinder(model, "Base", 0.14, 0.7, CF(0, -0.5, 0) * UPRIGHT, rgb(60, 40, 90), M.Metal)
 	else
 		handle = cylinder(model, "Handle", 0.12, 0.66, CF(0, 0, 0) * FACING, rgb(214, 170, 60), M.Metal)
 		cylinder(model, "Inner", 0.15, 0.66, CF() * FACING, rgb(190, 146, 52), M.Metal)
@@ -349,37 +446,51 @@ end
 
 -- Мобы ----------------------------------------------------------------------------------------
 -- Слизень: невидимый корень + желейное тело на суставе «Body» со SpecialMesh «SquashMesh» (сжатие/растяжение).
-local function buildSlime()
-	local def = Config.Mobs.Slime
-	local model, root = newRig("Slime", V3(2.6, 2.2, 2.6))
+local function buildSlime(modelId, def, scale)
+	local k = scale or 1
+	local model, root = newRig(modelId, V3(2.6, 2.2, 2.6) * k)
 	local green = rgb(96, 206, 92)
-	local body = block(model, "Body", V3(3.4, 2.6, 3.4), CF(0, 0.1, 0), green, M.Glass, { Transparency = 0.18 })
+	local king = def.Boss == true
+	if king then
+		green = rgb(110, 214, 120)
+	end
+	local body = block(model, "Body", V3(3.4, 2.6, 3.4) * k, CF(0, 0.1 * k, 0), green, M.Glass, { Transparency = 0.18 })
 	local mesh = Instance.new("SpecialMesh")
 	mesh.Name = "SquashMesh"
 	mesh.MeshType = Enum.MeshType.Sphere
 	mesh.Parent = body
-	motor("Body", root, body, CF(0, 0.1, 0), CF())
+	motor("Body", root, body, CF(0, 0.1 * k, 0), CF())
+	local coreColor = king and rgb(255, 214, 80) or shade(green, 0.6)
 	local parts = {
-		ball(model, "Core", 1.2, CF(0, -0.1, 0.2), shade(green, 0.6), M.Neon, { Transparency = 0.4 }),
-		ball(model, "EyeL", 0.62, CF(-0.55, 0.45, -1.35), rgb(255, 255, 255), M.SmoothPlastic),
-		ball(model, "EyeR", 0.62, CF(0.55, 0.45, -1.35), rgb(255, 255, 255), M.SmoothPlastic),
-		ball(model, "PupilL", 0.3, CF(-0.55, 0.42, -1.62), rgb(20, 24, 20), M.SmoothPlastic),
-		ball(model, "PupilR", 0.3, CF(0.55, 0.42, -1.62), rgb(20, 24, 20), M.SmoothPlastic),
-		block(model, "Mouth", V3(0.7, 0.12, 0.1), CF(0, -0.15, -1.62), rgb(30, 70, 30), M.SmoothPlastic),
-		ball(model, "Leaf", 0.5, CF(0.3, 1.3, 0.1), rgb(70, 140, 50), M.Grass),
-		block(model, "Stem", V3(0.12, 0.4, 0.12), CF(0.2, 1.25, 0.1) * ANG(0, 0, RAD(20)), rgb(90, 70, 40), M.Wood),
+		ball(model, "Core", 1.2 * k, CF(0, -0.1 * k, 0.2 * k), coreColor, M.Neon, { Transparency = king and 0.15 or 0.4 }),
+		ball(model, "EyeL", 0.62 * k, CF(-0.55 * k, 0.45 * k, -1.35 * k), rgb(255, 255, 255), M.SmoothPlastic),
+		ball(model, "EyeR", 0.62 * k, CF(0.55 * k, 0.45 * k, -1.35 * k), rgb(255, 255, 255), M.SmoothPlastic),
+		ball(model, "PupilL", 0.3 * k, CF(-0.55 * k, 0.42 * k, -1.62 * k), rgb(20, 24, 20), M.SmoothPlastic),
+		ball(model, "PupilR", 0.3 * k, CF(0.55 * k, 0.42 * k, -1.62 * k), rgb(20, 24, 20), M.SmoothPlastic),
+		block(model, "Mouth", V3(0.7, 0.12, 0.1) * k, CF(0, -0.15 * k, -1.62 * k), rgb(30, 70, 30), M.SmoothPlastic),
 	}
+	if king then
+		local gold = rgb(255, 205, 60)
+		table.insert(parts, cylinder(model, "CrownBand", 0.5 * k, 1.9 * k, CF(0, 1.35 * k, 0) * UPRIGHT, gold, M.Metal))
+		for i = 0, 5 do
+			local a = i / 6 * math.pi * 2
+			table.insert(parts, wedge(model, "CrownSpike", V3(0.3, 0.7, 0.3) * k, CF(math.cos(a) * 0.85 * k, 1.95 * k, math.sin(a) * 0.85 * k) * ANG(0, -a, 0), gold, M.Metal))
+		end
+		table.insert(parts, ball(model, "CrownGem", 0.4 * k, CF(0, 1.4 * k, -0.95 * k), rgb(255, 60, 90), M.Neon))
+	else
+		table.insert(parts, ball(model, "Leaf", 0.5 * k, CF(0.3 * k, 1.3 * k, 0.1 * k), rgb(70, 140, 50), M.Grass))
+		table.insert(parts, block(model, "Stem", V3(0.12, 0.4, 0.12) * k, CF(0.2 * k, 1.25 * k, 0.1 * k) * ANG(0, 0, RAD(20)), rgb(90, 70, 40), M.Wood))
+	end
 	weldGroup(parts, body)
 	addHumanoid(model, def.HipHeight, def.Name)
 	return model
 end
 
 -- Страж руин: каменный голем с мхом и светящимися рунами.
-local function buildGuardian()
-	local def = Config.Mobs.Guardian
+local function buildGuardian(modelId, def, scale)
 	local stone = rgb(118, 122, 128)
-	local model, p = humanoidRig("Guardian", {
-		Scale = 1.5,
+	local model, p = humanoidRig(modelId, {
+		Scale = 1.5 * (scale or 1),
 		Skin = shade(stone, 1.05), SkinMaterial = M.Slate,
 		Shirt = stone, ShirtMaterial = M.Slate,
 		Pants = shade(stone, 0.85), PantsMaterial = M.Slate,
@@ -492,10 +603,9 @@ local function buildBlacksmith()
 	return model
 end
 
-local function buildExpansionMob(mobId)
- local def = Config.Mobs[mobId]
- local volcanic = mobId == "EmberKnight" or mobId == "ObsidianGuard" or def.Boss
- local s = def.Boss and 3.5 or 1.25
+local function buildExpansionMob(mobId, def)
+ local volcanic = mobId == "EmberKnight" or mobId == "ObsidianGuard" or mobId == "AshOverlord"
+ local s = def.Scale or (def.Boss and 3.5 or 1.25)
  local stone = volcanic and rgb(46, 38, 57) or rgb(196, 160, 104)
  local glowColor = volcanic and rgb(255, 92, 38) or rgb(255, 222, 106)
  local model, p = humanoidRig(mobId, {
