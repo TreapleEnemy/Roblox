@@ -56,16 +56,18 @@ local function lantern(parent, pos, color)
  light(lamp,color,17)
  for _, y in ipairs({5.35,6.65}) do part(parent,"LanternCap",V(1.3,0.2,1.3),C(pos+V(0,y,0)),rgb(53,49,51),M.Metal) end
 end
-local function portal(parent, pos, destination)
+local function portal(parent, pos, destination, facing)
  local def = Config.Islands[destination]
  local f = group(parent,"Portal_"..destination)
- part(f,"PortalPlinth",V(12,0.5,8),C(pos),rgb(65,66,86),M.Marble,true)
+ -- Local -Z of base points at `facing`, so the core plane faces the approaching player.
+ local base = CFrame.lookAt(pos, V(facing.X, pos.Y, facing.Z))
+ part(f,"PortalPlinth",V(12,0.5,10),base,rgb(65,66,86),M.Marble,true)
  for _, side in ipairs({-1,1}) do
-  part(f,"PortalPillar",V(1.2,9,1.4),C(pos+V(side*4.5,4.5,0)),rgb(86,85,103),M.Slate,true)
-  crystal(f,pos+V(side*4.5,9,0),def.Color,0.6)
+  part(f,"PortalPillar",V(1.2,9,1.4),base*C(side*4.5,4.5,0),rgb(86,85,103),M.Slate,true)
+  crystal(f,(base*C(side*4.5,9,0)).Position,def.Color,0.6)
  end
- part(f,"PortalLintel",V(10,0.9,1.6),C(pos+V(0,9,0)),rgb(93,88,113),M.Marble,true)
- local core = part(f,"PortalCore",V(7.5,7.8,0.25),C(pos+V(0,4.5,0)),def.Color,M.Neon)
+ part(f,"PortalLintel",V(10,0.9,1.6),base*C(0,9,0),rgb(93,88,113),M.Marble,true)
+ local core = part(f,"PortalCore",V(7.5,7.8,0.25),base*C(0,4.5,0),def.Color,M.Neon)
  core.Transparency = 0.65
  light(core,def.Color,20)
  text(core,def.Name.."\nУровень "..def.Level.." • E — перейти")
@@ -84,6 +86,57 @@ local function clearSpawn(x,z)
  end
  return true
 end
+local function torch(parent, cf, color)
+ part(parent,"TorchStick",V(0.4,2.6,0.4),cf,rgb(70,48,32),M.Wood)
+ local head = part(parent,"TorchHead",V(0.8,0.6,0.8),cf*C(0,1.5,0),rgb(40,34,32),M.Metal)
+ local fire = Instance.new("Fire")
+ fire.Color, fire.SecondaryColor, fire.Size, fire.Heat = color, rgb(255,140,40), 4, 6
+ fire.Parent = head
+ light(head,color,16)
+end
+local function dungeonEntrance(parent)
+ local f = group(parent,"DungeonEntrance")
+ local base = CFrame.lookAt(V(40,2,134), V(0,2,118))
+ local stone, dark = rgb(78,76,86), rgb(34,32,40)
+ part(f,"EntranceSteps",V(16,0.3,9),base*C(0,0.15,-6.5),rgb(92,90,98),M.Cobblestone,true)
+ part(f,"EntranceFloor",V(14,0.4,6),base*C(0,0.2,0),dark,M.Slate,true)
+ for i=1,4 do
+  part(f,"DescendingStep",V(8-i*0.6,0.1,1.2),base*C(0,0.46,-3.6+i*1.1),rgb(34-i*5,32-i*5,40-i*5),M.Slate)
+ end
+ for _, side in ipairs({-1,1}) do
+  part(f,"ArchPillar",V(3,13,3.5),base*C(side*6,6.5,0),stone,M.Slate,true)
+  part(f,"PillarBase",V(4.2,1.2,4.7),base*C(side*6,0.6,0),rgb(60,58,68),M.Cobblestone,true)
+  part(f,"PillarCap",V(4.2,1,4.7),base*C(side*6,13.4,0),rgb(60,58,68),M.Cobblestone,true)
+  torch(f,base*C(side*6,4.5,-2.4),rgb(255,150,60))
+ end
+ part(f,"ArchLintel",V(16,3,4),base*C(0,14.5,0),stone,M.Slate,true)
+ part(f,"ArchKeystone",V(3,2,4.4),base*C(0,17,0),rgb(95,92,104),M.Cobblestone,true)
+ part(f,"ArchVoid",V(9,12,0.6),base*C(0,6,1.2),rgb(8,6,12),M.SmoothPlastic,true)
+ part(f,"ArchBackWall",V(16,13,1),base*C(0,6.5,2.6),dark,M.Slate,true)
+ local skull = part(f,"Skull",V(2.4,2.4,2.4),base*C(0,17.6,-2.4),rgb(226,220,200),M.Marble)
+ skull.Shape = Enum.PartType.Ball
+ for _, side in ipairs({-1,1}) do
+  local eye = part(f,"SkullEye",V(0.7,0.7,0.5),base*C(side*0.6,17.8,-3.4),rgb(10,8,10),M.SmoothPlastic)
+  eye.Shape = Enum.PartType.Ball
+  part(f,"SkullHorn",V(0.5,2.4,0.5),base*C(side*1.5,19,-2.4)*CFrame.Angles(0,0,-side*0.4),rgb(205,198,176),M.Marble)
+ end
+ part(f,"SkullJaw",V(1.8,0.6,1.4),base*C(0,16.4,-2.7),rgb(214,208,188),M.Marble)
+ local core = part(f,"DungeonEntranceCore",V(8,6,3),base*C(0,3,-1),rgb(120,230,140),M.Neon)
+ core.Transparency = 1
+ local prompt = Instance.new("ProximityPrompt")
+ prompt.Name = "DungeonEntrance"
+ prompt.ActionText, prompt.ObjectText = "Подземелья", "Вход в подземелья"
+ prompt.KeyboardKeyCode, prompt.HoldDuration = Enum.KeyCode.E, 0
+ prompt.MaxActivationDistance, prompt.RequiresLineOfSight = 12, false
+ prompt.Parent = core
+ local label = part(f,"DungeonSign",V(1,1,1),base*C(0,14,-3),rgb(255,255,255),M.SmoothPlastic)
+ label.Transparency = 1
+ text(label,"ПОДЗЕМЕЛЬЯ\nE — выбрать данж")
+ for _, off in ipairs({{-11,1},{11,-1},{-10,-5},{10,-5}}) do
+  local rock = part(f,"Rubble",V(1.6,1,1.4),base*C(off[1],0.5,off[2])*CFrame.Angles(0,off[1],0.2),rgb(86,84,92),M.Rock)
+  rock.CanCollide = false
+ end
+end
 local function starter(parent)
  -- Remove only small pre-existing static decorations along the new portal approaches.
  for _, p in ipairs(parent:GetDescendants()) do
@@ -94,13 +147,20 @@ local function starter(parent)
    if (inPath or inPortal) and pos.Y>Config.GroundY+0.5 then p:Destroy() end
   end
  end
+ for _, p in ipairs(parent:GetDescendants()) do
+  if p:IsA("BasePart") and p.Anchored and p.Name~="Boundary" and p.Size.X<25 and p.Size.Z<25 and p.Position.Y>Config.GroundY+0.5 then
+   local pos=p.Position
+   if (V(pos.X,0,pos.Z)-V(40,0,134)).Magnitude<14 then p:Destroy() end
+  end
+ end
  local f = group(parent,"GladeDetails")
  -- Side paths stop before the old boundary walls.
  for _, x in ipairs({-94,94}) do
   part(f,"PortalPath",V(math.abs(x),0.12,6),C(x/2,2.13,106),rgb(153,134,107),M.Cobblestone)
  end
- portal(f,V(-94,2.6,106),"Desert")
- portal(f,V(94,2.6,106),"Volcano")
+ portal(f,V(-94,2.6,106),"Desert",V(0,2,106))
+ portal(f,V(94,2.6,106),"Volcano",V(0,2,106))
+ dungeonEntrance(f)
  for i=1,28 do
   local x,z = rng:NextNumber(-140,140), rng:NextNumber(-140,135)
   if clearSpawn(x,z) and math.abs(x)>65 and math.abs(z-106)>12 then
@@ -187,8 +247,12 @@ local function island(parent,id,cx,volcanic)
  for _, z in ipairs({72,30,-15}) do
   for _, x in ipairs({cx-14,cx+14}) do lantern(f,V(x,2,z),def.Color) end
  end
- portal(f,V(cx-22,2.6,114),"Glade")
- portal(f,V(cx+22,2.6,114),volcanic and "Desert" or "Volcano")
+ portal(f,V(cx-22,2.6,114),"Glade",V(cx,2,114))
+ portal(f,V(cx+22,2.6,114),volcanic and "Desert" or "Volcano",V(cx,2,114))
+ if volcanic then
+  part(f,"PortalPath",V(8,0.12,16),C(cx,2.13,130),rgb(102,78,85),M.Cobblestone)
+  portal(f,V(cx,2.6,140),"Frost",V(cx,2,114))
+ end
  text(part(f,"ArrivalMarker",V(1,1,1),C(cx,6,131),def.Color,M.Neon),def.Name.."\nРекомендуемый уровень: "..def.Level.."+")
  -- Low perimeter walls stop mobs leaving their island. Portals are entirely inside these walls.
  for _, side in ipairs({-1,1}) do
